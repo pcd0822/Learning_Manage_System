@@ -52,10 +52,16 @@
 
             <head>
                 <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>학생 - 퀴즈 풀기</title>
-                <link rel="stylesheet" href="css/style.css">
-            </head>
+                ```html
+                <!DOCTYPE html>
+                <html lang="ko">
+
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>학생 - 퀴즈 풀기</title>
+                    <link rel="stylesheet" href="css/style.css">
+                </head>
 
             <body>
                 <div class="container">
@@ -98,7 +104,18 @@
                             <p id="accuracyDisplay">정답률: 0%</p>
                         </div>
                         <p>수고하셨습니다. 결과가 선생님께 전송되었습니다.</p>
-                        <a href="index.html" class="btn btn-secondary">홈으로</a>
+                        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                            <button class="btn" onclick="startReview()">오답 노트 / 복습하기</button>
+                            <a href="index.html" class="btn btn-secondary">홈으로 (복습 건너뛰기)</a>
+                        </div>
+                    </div>
+
+                    <!-- Review Section -->
+                    <div class="card" id="reviewCard" style="display: none;">
+                        <h2>오답 노트</h2>
+                        <p>틀린 문제를 확인하고 해설을 읽어보세요.</p>
+                        <div id="reviewContainer"></div>
+                        <button class="btn" onclick="finishReview()" style="margin-top: 2rem;">복습 완료</button>
                     </div>
                 </div>
 
@@ -109,6 +126,7 @@
                     let materialId = null;
                     let notionKey = null;
                     let resultsDb = null;
+                    let userAnswers = []; // Store answers for review
 
                     // Get ID and Credentials from URL
                     const urlParams = new URLSearchParams(window.location.search);
@@ -199,13 +217,24 @@
 
                             let inputHtml = '';
                             if (q.type === 'multiple-choice' || q.choices) {
+                                // Support both 'choices' (legacy) and 'options' (new prompt)
+                                const options = q.options || q.choices;
                                 inputHtml = `<div class="choices">
-                        ${q.choices.map((choice, i) => `
+                        ${options.map((choice, i) => `
                             <label style="display: block; margin: 0.5rem 0; cursor: pointer;">
                                 <input type="radio" name="q_${index}" value="${choice}"> 
                                 ${choice}
                             </label>
                         `).join('')}
+                    </div>`;
+                            } else if (q.type === 'ox-quiz') {
+                                inputHtml = `<div class="choices">
+                        <label style="display: block; margin: 0.5rem 0; cursor: pointer;">
+                            <input type="radio" name="q_${index}" value="O"> O
+                        </label>
+                        <label style="display: block; margin: 0.5rem 0; cursor: pointer;">
+                            <input type="radio" name="q_${index}" value="X"> X
+                        </label>
                     </div>`;
                             } else {
                                 inputHtml = `<input type="text" name="q_${index}" class="form-control" placeholder="답변을 입력하세요" style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">`;
@@ -228,11 +257,11 @@
                         const timeTakenStr = `${Math.floor(timeTakenSec / 60)}분 ${timeTakenSec % 60}초`;
 
                         let correctCount = 0;
-                        const answers = [];
+                        userAnswers = [];
 
                         quizData.questions.forEach((q, index) => {
                             let userAnswer = '';
-                            if (q.type === 'multiple-choice' || q.choices) {
+                            if (q.type === 'multiple-choice' || q.choices || q.type === 'ox-quiz') {
                                 const selected = document.querySelector(`input[name="q_${index}"]:checked`);
                                 userAnswer = selected ? selected.value : '';
                             } else {
@@ -240,14 +269,16 @@
                                 userAnswer = input ? input.value.trim() : '';
                             }
 
-                            const isCorrect = userAnswer === q.answer;
+                            // Simple string comparison for now. Ideally should be fuzzy for short answers.
+                            const isCorrect = userAnswer.trim() === q.answer.trim();
                             if (isCorrect) correctCount++;
 
-                            answers.push({
-                                questionId: index,
+                            userAnswers.push({
+                                questionId: index + 1,
                                 question: q.question,
                                 userAnswer: userAnswer,
                                 correctAnswer: q.answer,
+                                explanation: q.explanation,
                                 isCorrect: isCorrect
                             });
                         });
@@ -262,7 +293,7 @@
                         btn.disabled = true;
 
                         try {
-                            await fetch('/.netlify/functions/notion', {
+                            const response = await fetch('/.netlify/functions/notion', {
                                 method: 'POST',
                                 headers: getHeaders(),
                                 body: JSON.stringify({
@@ -272,9 +303,17 @@
                                     score: score,
                                     accuracy: accuracy,
                                     timeTaken: timeTakenStr,
-                                    answers: answers
+                                    answers: userAnswers
                                 })
                             });
+
+                            if (!response.ok) throw new Error('Submission failed');
+
+                            const result = await response.json();
+                            // Store resultPageId for review completion update
+                            if (result.pageId) {
+                                localStorage.setItem('lastResultPageId', result.pageId);
+                            }
 
                             showResult(score, accuracy);
                         } catch (error) {
@@ -291,7 +330,67 @@
                         document.getElementById('scoreDisplay').textContent = `${score}점`;
                         document.getElementById('accuracyDisplay').textContent = `정답률: ${accuracy}%`;
                     }
+
+                    function startReview() {
+                        document.getElementById('resultCard').style.display = 'none';
+                        document.getElementById('reviewCard').style.display = 'block';
+
+                        const container = document.getElementById('reviewContainer');
+                        container.innerHTML = '';
+
+                        const wrongAnswers = userAnswers.filter(a => !a.isCorrect);
+
+                        if (wrongAnswers.length === 0) {
+                            container.innerHTML = '<p>틀린 문제가 없습니다! 완벽합니다.</p>';
+                            return;
+                        }
+
+                        wrongAnswers.forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = 'question-card';
+                            div.style.backgroundColor = '#fef2f2'; // Light red bg
+                            div.style.border = '1px solid #fecaca';
+
+                            div.innerHTML = `
+                    <h3>Q${item.questionId}. ${item.question}</h3>
+                    <p><strong>나의 답:</strong> <span style="color: red; text-decoration: line-through;">${item.userAnswer || '(미입력)'}</span></p>
+                    <p><strong>정답:</strong> <span style="color: green;">${item.correctAnswer}</span></p>
+                    <div style="background: #fff; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                        <strong>💡 해설/힌트:</strong>
+                        <p>${item.explanation || '해설이 제공되지 않았습니다.'}</p>
+                    </div>
+                `;
+                            container.appendChild(div);
+                        });
+                    }
+
+                    async function finishReview() {
+                        const resultPageId = localStorage.getItem('lastResultPageId');
+                        const btn = document.querySelector('#reviewCard .btn');
+                        btn.textContent = '완료 처리 중...';
+                        btn.disabled = true;
+
+                        if (resultPageId) {
+                            try {
+                                await fetch('/.netlify/functions/notion', {
+                                    method: 'POST',
+                                    headers: getHeaders(),
+                                    body: JSON.stringify({
+                                        action: 'review_complete',
+                                        pageId: resultPageId
+                                    })
+                                });
+                            } catch (e) {
+                                console.error('Failed to update review status', e);
+                                // Continue anyway
+                            }
+                        }
+
+                        alert('복습이 완료되었습니다. 홈으로 이동합니다.');
+                        window.location.href = 'index.html';
+                    }
                 </script>
             </body>
 
             </html>
+            ```
