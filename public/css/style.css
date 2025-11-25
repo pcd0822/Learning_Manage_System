@@ -482,46 +482,6 @@ td {
 }
 
 th {
-    background-color: #f9fafb;
-    font-weight: 600;
-}
-
-/* Teacher UI Improvements */
-/* Teacher UI Improvements */
-.type-row {
-    align-items: center;
-}
-
-.type-select {
-    flex: 3;
-    /* Increased width */
-}
-
-.count-input {
-    flex: 1 !important;
-    /* Increased width */
-}
-
-.btn-delete {
-    flex: 0 0 auto;
-    background-color: #ef4444;
-    color: white;
-    padding: 0.25rem 0.5rem;
-    /* Smaller padding */
-    font-size: 0.8rem;
-    /* Smaller font */
-    height: fit-content;
-    border-radius: 4px;
-}
-
-.btn-delete:hover {
-    background-color: #dc2626;
-}
-
-/* OX Quiz UI */
-.ox-container {
-    display: flex;
-    gap: 1rem;
     justify-content: center;
     margin-top: 1rem;
 }
