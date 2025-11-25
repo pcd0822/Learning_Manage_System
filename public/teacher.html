@@ -1,0 +1,28 @@
+// Construct the student link with embedded credentials (WARNING: Insecure but requested for client-side config)
+const key = localStorage.getItem('notionKey');
+const rDb = localStorage.getItem('resultsDb');
+// Simple Base64 encoding to avoid plain text in URL (not encryption!)
+const encodedKey = btoa(key);
+const encodedDb = btoa(rDb);
+
+const link = `${window.location.origin}/student.html?id=${pageId}&k=${encodedKey}&d=${encodedDb}`;
+document.getElementById('shareLink').value = link;
+}
+
+function copyLink() {
+const copyText = document.getElementById("shareLink");
+copyText.select();
+document.execCommand("copy");
+alert("링크가 복사되었습니다!");
+}
+
+function resetForm() {
+document.getElementById('inputForm').style.display = 'block';
+document.getElementById('loading').style.display = 'none';
+document.getElementById('previewArea').style.display = 'none';
+currentQuizData = null;
+}
+</script>
+</body>
+
+</html>
