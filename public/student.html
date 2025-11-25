@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학생 - 퀴즈 풀기</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>학습 퀴즈</h1>
+        </header>
+
+        <!-- Login Section -->
+        <div class="card" id="loginCard">
+            <h2>시작하기</h2>
+            <p>이름을 입력하고 학습을 시작하세요.</p>
+            <input type="text" id="studentName" placeholder="이름 (예: 홍길동)">
+            <button class="btn" onclick="startQuiz()">학습 시작</button>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>문제를 불러오고 있습니다...</p>
+        </div>
+
+        <!-- Quiz Section -->
+        <div class="card" id="quizCard" style="display: none;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <h2 id="quizTitle">퀴즈 제목</h2>
+                <div id="timer" style="font-weight: bold; color: var(--primary-color);">00:00</div>
+            </div>
+
+            <div id="questionsContainer"></div>
+
+            <button class="btn" onclick="submitQuiz()" style="margin-top: 2rem;">제출하기</button>
+        </div>
+
+        <!-- Result Section -->
+        <div class="card" id="resultCard" style="display: none;">
+            <h2>학습 완료!</h2>
+            <div style="text-align: center; margin: 2rem 0;">
+                <h3 style="font-size: 3rem; margin: 0; color: var(--primary-color);" id="scoreDisplay">0점</h3>
+                <p id="accuracyDisplay">정답률: 0%</p>
+            </div>
+            <p>수고하셨습니다. 결과가 선생님께 전송되었습니다.</p>
+            <a href="index.html" class="btn btn-secondary">홈으로</a>
+        </div>
+    </div>
+
+    <script>
+        let quizData = null;
+        let startTime = null;
+        let timerInterval = null;
+        let materialId = null;
+        let notionKey = null;
+        let resultsDb = null;
+
+        // Get ID and Credentials from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        materialId = urlParams.get('id');
+        const encodedKey = urlParams.get('k');
+        const encodedDb = urlParams.get('d');
+
+        if (!materialId || !encodedKey || !encodedDb) {
+            alert('잘못된 접근입니다. 링크를 다시 확인해주세요.');
+            window.location.href = 'index.html';
+        }
+
+        try {
+            notionKey = atob(encodedKey);
+            resultsDb = atob(encodedDb);
+        } catch (e) {
+            console.error('Failed to decode credentials');
+        }
+
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'x-notion-token': notionKey,
+                'x-results-db': resultsDb
+            };
+        }
+
+        async function startQuiz() {
+            const name = document.getElementById('studentName').value;
+            if (!name) return alert('이름을 입력해주세요.');
+
+            document.getElementById('loginCard').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                const response = await fetch(`/.netlify/functions/notion?action=fetch&id=${materialId}`, {
+                    headers: getHeaders()
+                });
+                if (!response.ok) throw new Error('Failed to load quiz');
+
+                const data = await response.json();
+                quizData = data; // Assuming data is the JSON object stored in Notion
+
+                renderQuiz();
+                startTimer();
+            } catch (error) {
+                alert('퀴즈를 불러오는데 실패했습니다: ' + error.message);
+                document.getElementById('loginCard').style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderQuiz() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('quizCard').style.display = 'block';
+            document.getElementById('quizTitle').textContent = quizData.title || '퀴즈';
+
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = '';
+
+            quizData.questions.forEach((q, index) => {
+                const div = document.createElement('div');
+                div.className = 'question-card';
+                div.innerHTML = `<p><strong>Q${index + 1}. ${q.question}</strong></p>`;
+
+                if (q.options) {
+                    const optionsDiv = document.createElement('div');
+                    optionsDiv.className = 'options';
+                    q.options.forEach(opt => {
+                        const label = document.createElement('label');
+                        label.innerHTML = `
+                            <input type="radio" name="q${q.id}" value="${opt}">
+                            ${opt}
+                        `;
+                        optionsDiv.appendChild(label);
+                    });
+                    div.appendChild(optionsDiv);
+                } else {
+                    // Short answer
+                    div.innerHTML += `<input type="text" name="q${q.id}" placeholder="답안 입력">`;
+                }
+                container.appendChild(div);
+            });
+        }
+
+        function startTimer() {
+            startTime = new Date();
+            timerInterval = setInterval(() => {
+                const now = new Date();
+                const diff = Math.floor((now - startTime) / 1000);
+                const min = Math.floor(diff / 60).toString().padStart(2, '0');
+                const sec = (diff % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `${min}:${sec}`;
+            }, 1000);
+        }
+
+        async function submitQuiz() {
+            clearInterval(timerInterval);
+            const endTime = new Date();
+            const timeTakenSec = Math.floor((endTime - startTime) / 1000);
+            const timeTakenStr = `${Math.floor(timeTakenSec / 60)}분 ${timeTakenSec % 60}초`;
+
+            // Calculate Score
+            let correctCount = 0;
+            const answers = [];
+
+            quizData.questions.forEach(q => {
+                let userAns = '';
+                if (q.options) {
+                    const selected = document.querySelector(`input[name="q${q.id}"]:checked`);
+                    userAns = selected ? selected.value : '';
+                } else {
+                    const input = document.querySelector(`input[name="q${q.id}"]`);
+                    userAns = input ? input.value : '';
+                }
+
+                const isCorrect = userAns.trim() === q.answer.trim(); // Simple string match
+                if (isCorrect) correctCount++;
+
+                answers.push({
+                    id: q.id,
+                    question: q.question,
+                    userAnswer: userAns,
+                    correctAnswer: q.answer,
+                    isCorrect
+                });
+            });
+
+            const score = correctCount; // Or convert to 100 scale
+            const accuracy = Math.round((correctCount / quizData.questions.length) * 100);
+
+            // Submit to Notion
+            const btn = document.querySelector('#quizCard .btn');
+            btn.textContent = '제출 중...';
+            btn.disabled = true;
+
+            try {
+                await fetch('/.netlify/functions/notion', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        action: 'submit',
+                        studentName: document.getElementById('studentName').value,
+                        materialId: materialId,
+                        score: score,
+                        accuracy: accuracy,
+                        timeTaken: timeTakenStr,
+                        answers: answers
+                    })
+                });
+
+                showResult(score, accuracy);
+            } catch (error) {
+                alert('제출 실패: ' + error.message);
+                btn.textContent = '제출하기';
+                btn.disabled = false;
+            }
+        }
+
+        function showResult(score, accuracy) {
+            document.getElementById('quizCard').style.display = 'none';
+            document.getElementById('resultCard').style.display = 'block';
+            document.getElementById('scoreDisplay').textContent = `${score}점`;
+            document.getElementById('accuracyDisplay').textContent = `정답률: ${accuracy}%`;
+        }
+    </script>
+</body>
+
+</html>

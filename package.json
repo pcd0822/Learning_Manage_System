@@ -1,0 +1,17 @@
+{
+  "name": "lms-project",
+  "version": "1.0.0",
+  "description": "Learning Management System with Notion Integration",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "dotenv": "^16.4.5",
+    "openai": "^4.28.0"
+  }
+}
