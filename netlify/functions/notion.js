@@ -104,7 +104,10 @@ exports.handler = async (event, context) => {
             if (action === 'submit') {
                 const { studentName, materialId, score, accuracy, timeTaken, answers } = body;
 
-                await notion.pages.create({
+                // Format answers as requested: "Q1. Answer"
+                const formattedAnswers = answers.map(a => `Q${a.questionId}. ${a.userAnswer}`).join('\n');
+
+                const response = await notion.pages.create({
                     parent: { database_id: RESULTS_DB_ID },
                     properties: {
                         '학생이름': { title: [{ text: { content: studentName } }] },
@@ -112,14 +115,31 @@ exports.handler = async (event, context) => {
                         '점수': { number: score },
                         '정답률': { number: accuracy },
                         '소요시간': { rich_text: [{ text: { content: timeTaken } }] },
-                        '제출답안': { rich_text: [{ text: { content: JSON.stringify(answers) } }] },
-                        '제출일시': { date: { start: new Date().toISOString() } }
+                        '제출답안': { rich_text: [{ text: { content: formattedAnswers } }] },
+                        '제출일시': { date: { start: new Date().toISOString() } },
+                        '복습완료': { checkbox: false } // Initialize as false
                     }
                 });
 
                 return {
                     statusCode: 200,
-                    body: JSON.stringify({ message: "Submission successful" }),
+                    body: JSON.stringify({ message: "Submission successful", pageId: response.id }),
+                };
+            }
+
+            if (action === 'review_complete') {
+                const { pageId } = body;
+
+                await notion.pages.update({
+                    page_id: pageId,
+                    properties: {
+                        '복습완료': { checkbox: true }
+                    }
+                });
+
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify({ message: "Review status updated" }),
                 };
             }
         }
