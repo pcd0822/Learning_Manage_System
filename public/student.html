@@ -50,7 +50,7 @@
             <p>수고하셨습니다. 결과가 선생님께 전송되었습니다.</p>
             <div style="display: flex; gap: 1rem; margin-top: 2rem;">
                 <button class="btn" onclick="startReview()">오답 노트 / 복습하기</button>
-                <a href="index.html" class="btn btn-secondary">홈으로 (복습 건너뛰기)</a>
+                <button class="btn btn-secondary" onclick="location.reload()">처음으로</button>
             </div>
         </div>
 
@@ -152,6 +152,7 @@
                 div.innerHTML = `<p><strong>Q${index + 1}. ${q.question}</strong></p>`;
 
                 if (q.type === 'ox-quiz') {
+                    // OX Quiz: Horizontal Flex
                     div.innerHTML += `
                         <div class="ox-container">
                             <button class="ox-btn" onclick="selectOx(this, 'O', ${index})">O</button>
@@ -160,13 +161,17 @@
                         </div>
                     `;
                 } else if (q.options) {
+                    // Multiple Choice: Horizontal Flex
+                    let optionsHtml = '<div class="options-container">';
                     q.options.forEach(opt => {
-                        div.innerHTML += `
-                            <label style="display: block; margin: 0.5rem 0;">
+                        optionsHtml += `
+                            <label class="option-label">
                                 <input type="radio" name="q${index}" value="${opt}"> ${opt}
                             </label>
                         `;
                     });
+                    optionsHtml += '</div>';
+                    div.innerHTML += optionsHtml;
                 } else {
                     div.innerHTML += `<input type="text" name="q${index}" placeholder="답변을 입력하세요" style="width: 100%; padding: 0.5rem;">`;
                 }
@@ -176,14 +181,9 @@
         }
 
         function selectOx(btn, value, index) {
-            // Remove selected class from siblings
             const container = btn.parentElement;
             container.querySelectorAll('.ox-btn').forEach(b => b.classList.remove('selected'));
-
-            // Add selected class to clicked button
             btn.classList.add('selected');
-
-            // Update hidden input
             document.getElementById(`q${index}`).value = value;
         }
 
@@ -192,6 +192,13 @@
             const answers = [];
             let score = 0;
             const total = quizData.questions.length;
+
+            // Calculate Time Taken
+            const now = new Date();
+            const diff = Math.floor((now - startTime) / 1000);
+            const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
+            const seconds = (diff % 60).toString().padStart(2, '0');
+            const timeTaken = `${minutes}분 ${seconds}초`;
 
             quizData.questions.forEach((q, index) => {
                 let userAnswer = '';
@@ -205,7 +212,6 @@
                     if (input) userAnswer = input.value;
                 }
 
-                // Simple matching (case-insensitive, trimmed)
                 const isCorrect = userAnswer && q.answer && userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase();
                 if (isCorrect) score++;
 
@@ -215,17 +221,17 @@
                     userAnswer: userAnswer,
                     correctAnswer: q.answer,
                     isCorrect: isCorrect,
-                    explanation: q.explanation // Assuming explanation is part of quizData
+                    explanation: q.explanation
                 });
             });
 
-            userAnswers = answers; // Save for review
+            userAnswers = answers;
+            const accuracy = Math.round((score / total) * 100);
 
             // Show Result
             document.getElementById('quizCard').style.display = 'none';
             document.getElementById('resultCard').style.display = 'block';
             document.getElementById('scoreDisplay').textContent = `${score}점 / ${total}문제`;
-            const accuracy = Math.round((score / total) * 100);
             document.getElementById('accuracyDisplay').textContent = `정답률: ${accuracy}%`;
 
             // Save to Notion
@@ -239,8 +245,9 @@
                         materialId: materialId,
                         studentName: studentName,
                         score: score,
-                        total: total,
-                        answers: answers.map(a => `Q${a.questionId}. ${a.userAnswer}`).join('\n')
+                        accuracy: accuracy,
+                        timeTaken: timeTaken,
+                        answers: answers
                     })
                 });
                 const result = await response.json();
@@ -249,7 +256,6 @@
                 }
             } catch (error) {
                 console.error('Failed to submit results', error);
-                alert('결과 전송에 실패했습니다. 선생님께 화면을 보여주세요.');
             }
         }
 
@@ -270,7 +276,7 @@
             wrongAnswers.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'question-card';
-                div.style.backgroundColor = '#fef2f2'; // Light red bg
+                div.style.backgroundColor = '#fef2f2';
                 div.style.border = '1px solid #fecaca';
 
                 div.innerHTML = `
@@ -304,12 +310,11 @@
                     });
                 } catch (e) {
                     console.error('Failed to update review status', e);
-                    // Continue anyway
                 }
             }
 
-            alert('복습이 완료되었습니다. 홈으로 이동합니다.');
-            window.location.href = 'index.html';
+            alert('복습이 완료되었습니다. 처음으로 돌아갑니다.');
+            window.location.reload();
         }
     </script>
 </body>
