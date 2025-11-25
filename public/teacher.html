@@ -25,20 +25,32 @@
         </div>
 
         <div class="card" id="inputForm" style="display: none;">
-            <label for="topic">학습 주제</label>
-            <input type="text" id="topic" placeholder="예: 광합성의 원리, 임진왜란의 배경">
+            <label for="topic">학습 주제 (제목)</label>
+            <input type="text" id="topic" placeholder="예: 광합성의 원리">
+
+            <label for="context">학습 내용 (텍스트)</label>
+            <textarea id="context" rows="6"
+                placeholder="여기에 학습할 본문 내용을 입력하거나 붙여넣으세요. AI가 이 내용을 바탕으로 문제를 출제합니다."></textarea>
+
+            <label for="videoUrl">동영상 링크 (YouTube 등)</label>
+            <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
+
+            <label for="imageUrl">이미지 링크 (선택)</label>
+            <input type="text" id="imageUrl" placeholder="https://example.com/image.jpg">
 
             <label for="type">문제 유형</label>
             <select id="type">
-                <option value="multiple-choice">객관식 (4지 선다)</option>
-                <option value="short-answer">단답형</option>
-                <option value="true-false">O/X 퀴즈</option>
+                <option value="ox-quiz">OX 퀴즈</option>
+                <option value="multiple-choice">선택형 (객관식)</option>
+                <option value="short-answer">단답형 (빈칸 채우기)</option>
+                <option value="essay">논술형</option>
+                <option value="inquiry">탐구과제형</option>
             </select>
 
             <label for="count">문항 수</label>
-            <input type="number" id="count" value="5" min="1" max="10">
+            <input type="number" id="count" value="3" min="1" max="10">
 
-            <button class="btn" onclick="generateQuiz()">퀴즈 생성하기</button>
+            <button class="btn" onclick="generateQuiz()">학습자료 및 문제 생성하기</button>
         </div>
 
         <div id="loading">
@@ -107,10 +119,13 @@
 
         async function generateQuiz() {
             const topic = document.getElementById('topic').value;
+            const context = document.getElementById('context').value;
+            const videoUrl = document.getElementById('videoUrl').value;
+            const imageUrl = document.getElementById('imageUrl').value;
             const type = document.getElementById('type').value;
             const count = document.getElementById('count').value;
 
-            if (!topic) return alert('주제를 입력해주세요.');
+            if (!topic || !context) return alert('주제와 학습 내용을 모두 입력해주세요.');
 
             document.getElementById('inputForm').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
@@ -118,7 +133,7 @@
             try {
                 const response = await fetch('/.netlify/functions/openai-proxy', {
                     method: 'POST',
-                    body: JSON.stringify({ prompt: topic, type, count })
+                    body: JSON.stringify({ prompt: topic, context, videoUrl, imageUrl, type, count })
                 });
 
                 if (!response.ok) throw new Error('Generation failed');
@@ -149,6 +164,11 @@
                         html += `<li>- ${opt}</li>`;
                     });
                     html += `</ul>`;
+                } else if (q.type === 'ox-quiz') {
+                    html += `<ul style="list-style: none; padding: 0;">
+                        <li>- O</li>
+                        <li>- X</li>
+                    </ul>`;
                 }
                 html += `<p style="color: green; font-size: 0.9rem;">정답: ${q.answer}</p></div>`;
                 container.innerHTML += html;
