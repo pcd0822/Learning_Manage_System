@@ -67,153 +67,76 @@
             <h2>미리보기</h2>
             <div id="quizPreview"></div>
             <button class="btn" onclick="publishToNotion()" style="margin-top: 1rem;">Notion에 발행하기</button>
-            <button class="btn btn-secondary" onclick="resetForm()" style="margin-top: 0.5rem;">다시 만들기</button>
+            <button class="btn btn-secondary" onclick="resetForm()" style="margin-top: 0.5rem;">다시
+                만들기</button>
         </div>
 
         <div class="card" id="resultArea" style="display: none;">
             <h2>발행 완료!</h2>
             <p>아래 링크를 복사하여 학생들에게 공유하세요.</p>
             <input type="text" id="shareLink" readonly>
-            <!DOCTYPE html>
-            <html lang="ko">
+            <button class="btn" onclick="copyLink()">링크 복사</button>
+            <a href="index.html" class="btn btn-secondary" style="margin-top: 1rem;">메인으로 돌아가기</a>
+        </div>
+    </div>
 
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>교사 - 자료 생성</title>
-                <link rel="stylesheet" href="css/style.css">
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-                <script>
-                    // Initialize PDF.js worker
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                </script>
-            </head>
+    <script>
+        let currentQuizData = null;
 
-            <body>
-                <div class="container">
-                    <header>
-                        <h1>학습 자료 생성</h1>
-                        <p>AI를 활용하여 맞춤형 퀴즈를 생성하고 Notion에 배포하세요.</p>
-                    </header>
+        // Load config on startup
+        window.onload = () => {
+            const key = localStorage.getItem('notionKey');
+            const mDb = localStorage.getItem('materialsDb');
+            const rDb = localStorage.getItem('resultsDb');
 
-                    <!-- Config Section: Always Visible -->
-                    <div class="card" id="configSection">
-                        <h2>⚙️ 설정</h2>
-                        <p>Notion 연동 정보를 입력해주세요.</p>
-                        <input type="password" id="notionKey" placeholder="Notion Integration Token (secret_...)">
-                        <input type="text" id="materialsDb" placeholder="학습자료 DB ID">
-                        <input type="text" id="resultsDb" placeholder="학습결과 DB ID">
-                        <button class="btn btn-secondary" onclick="saveConfig()">설정 저장하기</button>
-                    </div>
+            if (key && mDb && rDb) {
+                document.getElementById('notionKey').value = key;
+                document.getElementById('materialsDb').value = mDb;
+                document.getElementById('resultsDb').value = rDb;
+                document.getElementById('inputForm').style.display = 'block';
+                // Config section remains visible as requested
+            }
 
-                    <div class="card" id="inputForm" style="display: none;">
-                        <label for="topic">학습 주제 (제목)</label>
-                        <input type="text" id="topic" placeholder="예: 광합성의 원리">
+            // Initialize with one row
+            if (document.getElementById('typeConfigContainer').children.length === 0) {
+                addTypeRow();
+            }
+        };
 
-                        <label for="context">학습 내용 (텍스트)</label>
-                        <textarea id="context" rows="6"
-                            placeholder="여기에 학습할 본문 내용을 입력하거나 붙여넣으세요. AI가 이 내용을 바탕으로 문제를 출제합니다."></textarea>
+        function saveConfig() {
+            const key = document.getElementById('notionKey').value;
+            const mDb = document.getElementById('materialsDb').value;
+            const rDb = document.getElementById('resultsDb').value;
 
-                        <label for="videoUrl">동영상 링크 (YouTube 등)</label>
-                        <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
+            if (!key || !mDb || !rDb) return alert('모든 정보를 입력해주세요.');
 
-                        <label for="imageUrl">이미지 링크 (선택)</label>
-                        <input type="text" id="imageUrl" placeholder="https://example.com/image.jpg">
+            localStorage.setItem('notionKey', key);
+            localStorage.setItem('materialsDb', mDb);
+            localStorage.setItem('resultsDb', rDb);
 
-                        <label for="fileUpload">학습 자료 파일 업로드 (PDF, 이미지)</label>
-                        <input type="file" id="fileUpload" accept=".pdf, image/*">
-                        <p style="font-size: 0.8rem; color: #666;">파일을 업로드하면 AI가 내용을 분석하여 문제를 출제합니다.</p>
+            alert('설정이 저장되었습니다.');
+            document.getElementById('inputForm').style.display = 'block';
+            // Config section remains visible
+        }
 
-                        <label>문제 구성</label>
-                        <div id="typeConfigContainer">
-                            <!-- Dynamic rows will be added here -->
-                        </div>
-                        <button class="btn btn-secondary" onclick="addTypeRow()"
-                            style="margin-bottom: 1rem; font-size: 0.9rem;">+
-                            유형 추가</button>
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'x-notion-token': localStorage.getItem('notionKey'),
+                'x-materials-db': localStorage.getItem('materialsDb'),
+                'x-results-db': localStorage.getItem('resultsDb')
+            };
+        }
 
-                        <button class="btn" onclick="generateQuiz()">학습자료 및 문제 생성하기</button>
-                    </div>
+        function addTypeRow() {
+            const container = document.getElementById('typeConfigContainer');
+            const div = document.createElement('div');
+            div.className = 'type-row';
+            div.style.display = 'flex';
+            div.style.gap = '0.5rem';
+            div.style.marginBottom = '0.5rem';
 
-                    <div id="loading">
-                        <div class="spinner"></div>
-                        <p>AI가 문제를 생성하고 있습니다...</p>
-                    </div>
-
-                    <div class="card" id="previewArea" style="display: none;">
-                        <h2>미리보기</h2>
-                        <div id="quizPreview"></div>
-                        <button class="btn" onclick="publishToNotion()" style="margin-top: 1rem;">Notion에 발행하기</button>
-                        <button class="btn btn-secondary" onclick="resetForm()" style="margin-top: 0.5rem;">다시
-                            만들기</button>
-                    </div>
-
-                    <div class="card" id="resultArea" style="display: none;">
-                        <h2>발행 완료!</h2>
-                        <p>아래 링크를 복사하여 학생들에게 공유하세요.</p>
-                        <input type="text" id="shareLink" readonly>
-                        <button class="btn" onclick="copyLink()">링크 복사</button>
-                        <a href="index.html" class="btn btn-secondary" style="margin-top: 1rem;">메인으로 돌아가기</a>
-                    </div>
-                </div>
-
-                <script>
-                    let currentQuizData = null;
-
-                    // Load config on startup
-                    window.onload = () => {
-                        const key = localStorage.getItem('notionKey');
-                        const mDb = localStorage.getItem('materialsDb');
-                        const rDb = localStorage.getItem('resultsDb');
-
-                        if (key && mDb && rDb) {
-                            document.getElementById('notionKey').value = key;
-                            document.getElementById('materialsDb').value = mDb;
-                            document.getElementById('resultsDb').value = rDb;
-                            document.getElementById('inputForm').style.display = 'block';
-                            // Config section remains visible as requested
-                        }
-
-                        // Initialize with one row
-                        if (document.getElementById('typeConfigContainer').children.length === 0) {
-                            addTypeRow();
-                        }
-                    };
-
-                    function saveConfig() {
-                        const key = document.getElementById('notionKey').value;
-                        const mDb = document.getElementById('materialsDb').value;
-                        const rDb = document.getElementById('resultsDb').value;
-
-                        if (!key || !mDb || !rDb) return alert('모든 정보를 입력해주세요.');
-
-                        localStorage.setItem('notionKey', key);
-                        localStorage.setItem('materialsDb', mDb);
-                        localStorage.setItem('resultsDb', rDb);
-
-                        alert('설정이 저장되었습니다.');
-                        document.getElementById('inputForm').style.display = 'block';
-                        // Config section remains visible
-                    }
-
-                    function getHeaders() {
-                        return {
-                            'Content-Type': 'application/json',
-                            'x-notion-token': localStorage.getItem('notionKey'),
-                            'x-materials-db': localStorage.getItem('materialsDb'),
-                            'x-results-db': localStorage.getItem('resultsDb')
-                        };
-                    }
-
-                    function addTypeRow() {
-                        const container = document.getElementById('typeConfigContainer');
-                        const div = document.createElement('div');
-                        div.className = 'type-row';
-                        div.style.display = 'flex';
-                        div.style.gap = '0.5rem';
-                        div.style.marginBottom = '0.5rem';
-
-                        div.innerHTML = `
+            div.innerHTML = `
                 <select class="type-select">
                     <option value="multiple-choice">선택형 (객관식)</option>
                     <option value="ox-quiz">OX 퀴즈</option>
@@ -225,182 +148,185 @@
                 <input type="number" class="count-input" value="1" min="1" max="10">
                 <button class="btn btn-delete" onclick="this.parentElement.remove()">삭제</button>
             `;
-                        container.appendChild(div);
-                    }
+            container.appendChild(div);
+        }
 
-                    async function generateQuiz() {
-                        const topic = document.getElementById('topic').value;
-                        let context = document.getElementById('context').value;
-                        const videoUrl = document.getElementById('videoUrl').value;
-                        const imageUrl = document.getElementById('imageUrl').value;
-                        const fileInput = document.getElementById('fileUpload');
+        async function generateQuiz() {
+            const topic = document.getElementById('topic').value;
+            let context = document.getElementById('context').value;
+            const videoUrl = document.getElementById('videoUrl').value;
+            const imageUrl = document.getElementById('imageUrl').value;
+            const fileInput = document.getElementById('fileUpload');
 
-                        // Gather Type Config
-                        const config = [];
-                        document.querySelectorAll('.type-row').forEach(row => {
-                            config.push({
-                                type: row.querySelector('.type-select').value,
-                                count: row.querySelector('.count-input').value
-                            });
+            // Gather Type Config
+            const config = [];
+            document.querySelectorAll('.type-row').forEach(row => {
+                config.push({
+                    type: row.querySelector('.type-select').value,
+                    count: row.querySelector('.count-input').value
+                });
+            });
+
+            if (config.length === 0) return alert('최소 1개 이상의 문제 유형을 추가해주세요.');
+            if (!topic && !context && !fileInput.files[0]) return alert('주제, 학습 내용, 또는 파일 중 하나는 반드시 입력해야 합니다.');
+
+            document.getElementById('inputForm').style.display = 'none';
+            document.getElementById('configSection').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            // Process File Upload (Client-side)
+            let fileData = null;
+            let fileType = null;
+
+            if (fileInput.files[0]) {
+                const file = fileInput.files[0];
+                fileType = file.type;
+
+                try {
+                    if (file.type === 'application/pdf') {
+                        // Extract text from PDF using PDF.js
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        let pdfText = "";
+
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => item.str).join(' ');
+                            pdfText += `[Page ${i}]\n${pageText}\n\n`;
+                        }
+                        context += `\n\n[업로드된 PDF 내용]\n${pdfText}`;
+                    } else if (file.type.startsWith('image/')) {
+                        // For images, read as base64 to send to backend (GPT-4o Vision)
+                        fileData = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result.split(',')[1]);
+                            reader.onerror = reject;
+                            reader.readAsDataURL(file);
                         });
-
-                        if (config.length === 0) return alert('최소 1개 이상의 문제 유형을 추가해주세요.');
-                        if (!topic && !context && !fileInput.files[0]) return alert('주제, 학습 내용, 또는 파일 중 하나는 반드시 입력해야 합니다.');
-
-                        document.getElementById('inputForm').style.display = 'none';
-                        document.getElementById('loading').style.display = 'block';
-
-                        // Process File Upload (Client-side)
-                        let fileData = null;
-                        let fileType = null;
-
-                        if (fileInput.files[0]) {
-                            const file = fileInput.files[0];
-                            fileType = file.type;
-
-                            try {
-                                if (file.type === 'application/pdf') {
-                                    // Extract text from PDF using PDF.js
-                                    const arrayBuffer = await file.arrayBuffer();
-                                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                                    let pdfText = "";
-
-                                    for (let i = 1; i <= pdf.numPages; i++) {
-                                        const page = await pdf.getPage(i);
-                                        const textContent = await page.getTextContent();
-                                        const pageText = textContent.items.map(item => item.str).join(' ');
-                                        pdfText += `[Page ${i}]\n${pageText}\n\n`;
-                                    }
-                                    context += `\n\n[업로드된 PDF 내용]\n${pdfText}`;
-                                } else if (file.type.startsWith('image/')) {
-                                    // For images, read as base64 to send to backend (GPT-4o Vision)
-                                    fileData = await new Promise((resolve, reject) => {
-                                        const reader = new FileReader();
-                                        reader.onload = () => resolve(reader.result.split(',')[1]);
-                                        reader.onerror = reject;
-                                        reader.readAsDataURL(file);
-                                    });
-                                }
-                            } catch (e) {
-                                console.error(e);
-                                alert('파일 처리 실패: ' + e.message);
-                                resetForm();
-                                return;
-                            }
-                        }
-
-                        try {
-                            const response = await fetch('/.netlify/functions/openai-proxy', {
-                                method: 'POST',
-                                body: JSON.stringify({
-                                    prompt: topic,
-                                    context, // Now includes PDF text
-                                    videoUrl,
-                                    imageUrl,
-                                    config,
-                                    fileData, // Only for images
-                                    fileType
-                                })
-                            });
-
-                            if (!response.ok) throw new Error('Generation failed');
-
-                            const data = await response.json();
-                            currentQuizData = data;
-                            renderPreview(data);
-                        } catch (error) {
-                            alert('오류가 발생했습니다: ' + error.message);
-                            resetForm();
-                        }
                     }
+                } catch (e) {
+                    console.error(e);
+                    alert('파일 처리 실패: ' + e.message);
+                    resetForm();
+                    return;
+                }
+            }
 
-                    function renderPreview(data) {
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('previewArea').style.display = 'block';
+            try {
+                const response = await fetch('/.netlify/functions/openai-proxy', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        prompt: topic,
+                        context, // Now includes PDF text
+                        videoUrl,
+                        imageUrl,
+                        config,
+                        fileData, // Only for images
+                        fileType
+                    })
+                });
 
-                        const container = document.getElementById('quizPreview');
-                        container.innerHTML = `<h3>${data.title}</h3>`;
+                if (!response.ok) throw new Error('Generation failed');
 
-                        data.questions.forEach((q, index) => {
-                            let html = `<div class="question-card">
+                const data = await response.json();
+                currentQuizData = data;
+                renderPreview(data);
+            } catch (error) {
+                alert('오류가 발생했습니다: ' + error.message);
+                resetForm();
+            }
+        }
+
+        function renderPreview(data) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('previewArea').style.display = 'block';
+
+            const container = document.getElementById('quizPreview');
+            container.innerHTML = `<h3>${data.title}</h3>`;
+
+            data.questions.forEach((q, index) => {
+                let html = `<div class="question-card">
                     <p><strong>Q${index + 1}. ${q.question}</strong></p>`;
 
-                            if (q.options) {
-                                html += `<ul style="list-style: none; padding: 0;">`;
-                                q.options.forEach(opt => {
-                                    html += `<li>- ${opt}</li>`;
-                                });
-                                html += `</ul>`;
-                            } else if (q.type === 'ox-quiz') {
-                                html += `<ul style="list-style: none; padding: 0;">
+                if (q.options) {
+                    html += `<ul style="list-style: none; padding: 0;">`;
+                    q.options.forEach(opt => {
+                        html += `<li>- ${opt}</li>`;
+                    });
+                    html += `</ul>`;
+                } else if (q.type === 'ox-quiz') {
+                    html += `<ul style="list-style: none; padding: 0;">
                         <li>- O</li>
                         <li>- X</li>
                     </ul>`;
-                            }
-                            html += `<p style="color: green; font-size: 0.9rem;">정답: ${q.answer}</p></div>`;
-                            container.innerHTML += html;
-                        });
-                    }
+                }
+                html += `<p style="color: green; font-size: 0.9rem;">정답: ${q.answer}</p></div>`;
+                container.innerHTML += html;
+            });
+        }
 
-                    async function publishToNotion() {
-                        if (!currentQuizData) return;
+        async function publishToNotion() {
+            if (!currentQuizData) return;
 
-                        const btn = document.querySelector('#previewArea .btn');
-                        btn.textContent = '발행 중...';
-                        btn.disabled = true;
+            const btn = document.querySelector('#previewArea .btn');
+            btn.textContent = '발행 중...';
+            btn.disabled = true;
 
-                        try {
-                            const response = await fetch('/.netlify/functions/notion', {
-                                method: 'POST',
-                                headers: getHeaders(),
-                                body: JSON.stringify({
-                                    action: 'publish',
-                                    title: currentQuizData.title,
-                                    quizData: currentQuizData,
-                                    count: currentQuizData.questions.length
-                                })
-                            });
+            try {
+                const response = await fetch('/.netlify/functions/notion', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        action: 'publish',
+                        title: currentQuizData.title,
+                        quizData: currentQuizData,
+                        count: currentQuizData.questions.length
+                    })
+                });
 
-                            if (!response.ok) throw new Error('Publish failed');
+                if (!response.ok) throw new Error('Publish failed');
 
-                            const result = await response.json();
-                            showResult(result.pageId);
-                        } catch (error) {
-                            alert('발행 실패: ' + error.message);
-                            btn.textContent = 'Notion에 발행하기';
-                            btn.disabled = false;
-                        }
-                    }
+                const result = await response.json();
+                showResult(result.pageId);
+            } catch (error) {
+                alert('발행 실패: ' + error.message);
+                btn.textContent = 'Notion에 발행하기';
+                btn.disabled = false;
+            }
+        }
 
-                    function showResult(pageId) {
-                        document.getElementById('previewArea').style.display = 'none';
-                        document.getElementById('resultArea').style.display = 'block';
+        function showResult(pageId) {
+            document.getElementById('previewArea').style.display = 'none';
+            document.getElementById('resultArea').style.display = 'block';
 
-                        // Construct the student link with embedded credentials (WARNING: Insecure but requested for client-side config)
-                        const key = localStorage.getItem('notionKey');
-                        const rDb = localStorage.getItem('resultsDb');
-                        // Simple Base64 encoding to avoid plain text in URL (not encryption!)
-                        const encodedKey = btoa(key);
-                        const encodedDb = btoa(rDb);
+            // Construct the student link with embedded credentials (WARNING: Insecure but requested for client-side config)
+            const key = localStorage.getItem('notionKey');
+            const rDb = localStorage.getItem('resultsDb');
+            // Simple Base64 encoding to avoid plain text in URL (not encryption!)
+            const encodedKey = btoa(key);
+            const encodedDb = btoa(rDb);
 
-                        const link = `${window.location.origin}/student.html?id=${pageId}&k=${encodedKey}&d=${encodedDb}`;
-                        document.getElementById('shareLink').value = link;
-                    }
+            const link = `${window.location.origin}/student.html?id=${pageId}&k=${encodedKey}&d=${encodedDb}`;
+            document.getElementById('shareLink').value = link;
+        }
 
-                    function copyLink() {
-                        const copyText = document.getElementById("shareLink");
-                        copyText.select();
-                        document.execCommand("copy");
-                        alert("링크가 복사되었습니다!");
-                    }
+        function copyLink() {
+            const copyText = document.getElementById("shareLink");
+            copyText.select();
+            document.execCommand("copy");
+            alert("링크가 클립보드에 복사되었습니다!");
+        }
 
-                    function resetForm() {
-                        document.getElementById('inputForm').style.display = 'block';
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('previewArea').style.display = 'none';
-                        currentQuizData = null;
-                    }
-                </script>
-            </body>
+        function resetForm() {
+            document.getElementById('inputForm').style.display = 'block';
+            document.getElementById('configSection').style.display = 'block'; // Show config section again
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('previewArea').style.display = 'none';
+            currentQuizData = null;
+        }
+    </script>
+</body>
 
-            </html>
+</html>
