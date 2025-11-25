@@ -63,11 +63,14 @@ h1 {
 .btn-secondary {
     background-color: #9ca3af;
 }
+
 .btn-secondary:hover {
     background-color: #6b7280;
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid #d1d5db;
@@ -119,8 +122,13 @@ input, select, textarea {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Dashboard Tables */
@@ -130,7 +138,149 @@ table {
     margin-top: 1rem;
 }
 
-th, td {
+th,
+:root {
+    --primary-color: #2563eb;
+    --secondary-color: #1e40af;
+    --background-color: #f3f4f6;
+    --text-color: #1f2937;
+    --card-bg: #ffffff;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+h1 {
+    color: var(--primary-color);
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.btn {
+    display: inline-block;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.btn:hover {
+    background-color: var(--secondary-color);
+}
+
+.btn-secondary {
+    background-color: #9ca3af;
+}
+
+.btn-secondary:hover {
+    background-color: #6b7280;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.question-card {
+    border: 1px solid #e5e7eb;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.options label {
+    display: block;
+    padding: 0.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+}
+
+.options label:hover {
+    background-color: #f9fafb;
+}
+
+.options input[type="radio"] {
+    width: auto;
+    margin-right: 0.5rem;
+}
+
+#loading {
+    display: none;
+    text-align: center;
+    margin: 1rem 0;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Dashboard Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+th,
+td {
     text-align: left;
     padding: 1rem;
     border-bottom: 1px solid #e5e7eb;
@@ -139,4 +289,34 @@ th, td {
 th {
     background-color: #f9fafb;
     font-weight: 600;
+}
+
+/* Teacher UI Improvements */
+.type-row {
+    align-items: center;
+}
+
+.type-select {
+    flex: 2;
+    /* Adjust width as needed, flex handles it mostly */
+}
+
+.count-input {
+    flex: 0.5 !important;
+    /* Make count input smaller */
+}
+
+.btn-delete {
+    flex: 0 0 auto;
+    background-color: #ef4444;
+    /* Red color */
+    color: white;
+    padding: 0.5rem 1rem;
+    /* Smaller padding */
+    font-size: 0.9rem;
+    height: fit-content;
+}
+
+.btn-delete:hover {
+    background-color: #dc2626;
 }
