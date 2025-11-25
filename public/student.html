@@ -47,119 +47,251 @@
                 <h3 style="font-size: 3rem; margin: 0; color: var(--primary-color);" id="scoreDisplay">0점</h3>
                 <p id="accuracyDisplay">정답률: 0%</p>
             </div>
-            <p>수고하셨습니다. 결과가 선생님께 전송되었습니다.</p>
-            <a href="index.html" class="btn btn-secondary">홈으로</a>
-        </div>
-    </div>
+            <!DOCTYPE html>
+            <html lang="ko">
 
-    <script>
-        let quizData = null;
-        let startTime = null;
-        let timerInterval = null;
-        let materialId = null;
-        let notionKey = null;
-        let resultsDb = null;
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>학생 - 퀴즈 풀기</title>
+                <link rel="stylesheet" href="css/style.css">
+            </head>
 
-        // Get ID and Credentials from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        materialId = urlParams.get('id');
-        const encodedKey = urlParams.get('k');
-        const encodedDb = urlParams.get('d');
+            <body>
+                <div class="container">
+                    <header>
+                        <h1>학습 퀴즈</h1>
+                    </header>
 
-        if (!materialId || !encodedKey || !encodedDb) {
-            alert('잘못된 접근입니다. 링크를 다시 확인해주세요.');
-            window.location.href = 'index.html';
-        }
+                    <!-- Login Section -->
+                    <div class="card" id="loginCard">
+                        <h2>시작하기</h2>
+                        <p>이름을 입력하고 학습을 시작하세요.</p>
+                        <input type="text" id="studentName" placeholder="이름 (예: 홍길동)">
+                        <button class="btn" onclick="startQuiz()">학습 시작</button>
+                    </div>
 
-        try {
-            notionKey = atob(encodedKey);
-            resultsDb = atob(encodedDb);
-        } catch (e) {
-            console.error('Failed to decode credentials');
-        }
+                    <!-- Loading -->
+                    <div id="loading">
+                        <div class="spinner"></div>
+                        <p>문제를 불러오고 있습니다...</p>
+                    </div>
 
-        function getHeaders() {
-            return {
-                'Content-Type': 'application/json',
-                'x-notion-token': notionKey,
-                'x-results-db': resultsDb
-            };
-        }
+                    <!-- Quiz Section -->
+                    <div class="card" id="quizCard" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                            <h2 id="quizTitle">퀴즈 제목</h2>
+                            <div id="timer" style="font-weight: bold; color: var(--primary-color);">00:00</div>
+                        </div>
 
-        async function startQuiz() {
-            const name = document.getElementById('studentName').value;
-            if (!name) return alert('이름을 입력해주세요.');
+                        <div id="questionsContainer"></div>
 
-            document.getElementById('loginCard').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
+                        <button class="btn" onclick="submitQuiz()" style="margin-top: 2rem;">제출하기</button>
+                    </div>
 
-            try {
-                const response = await fetch(`/.netlify/functions/notion?action=fetch&id=${materialId}`, {
-                    headers: getHeaders()
-                });
-                if (!response.ok) throw new Error('Failed to load quiz');
+                    <!-- Result Section -->
+                    <div class="card" id="resultCard" style="display: none;">
+                        <h2>학습 완료!</h2>
+                        <div style="text-align: center; margin: 2rem 0;">
+                            <h3 style="font-size: 3rem; margin: 0; color: var(--primary-color);" id="scoreDisplay">0점
+                            </h3>
+                            <p id="accuracyDisplay">정답률: 0%</p>
+                        </div>
+                        <p>수고하셨습니다. 결과가 선생님께 전송되었습니다.</p>
+                        <a href="index.html" class="btn btn-secondary">홈으로</a>
+                    </div>
+                </div>
 
-                const data = await response.json();
-                quizData = data; // Assuming data is the JSON object stored in Notion
+                <script>
+                    let quizData = null;
+                    let startTime = null;
+                    let timerInterval = null;
+                    let materialId = null;
+                    let notionKey = null;
+                    let resultsDb = null;
 
-                renderQuiz();
-                startTimer();
-            } catch (error) {
-                const diff = Math.floor((now - startTime) / 1000);
-                const min = Math.floor(diff / 60).toString().padStart(2, '0');
-                const sec = (diff % 60).toString().padStart(2, '0');
-                document.getElementById('timer').textContent = `${min}:${sec}`;
-            }, 1000);
-        }
+                    // Get ID and Credentials from URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    materialId = urlParams.get('id');
+                    const encodedKey = urlParams.get('k');
+                    const encodedDb = urlParams.get('d');
 
-        async function submitQuiz() {
-            clearInterval(timerInterval);
-            const endTime = new Date();
-            const timeTakenSec = Math.floor((endTime - startTime) / 1000);
-            const timeTakenStr = `${Math.floor(timeTakenSec / 60)}분 ${timeTakenSec % 60}초`;
-            correctAnswer: q.answer,
-                isCorrect
-        });
-            });
+                    if (!materialId || !encodedKey || !encodedDb) {
+                        alert('잘못된 접근입니다. 링크를 다시 확인해주세요.');
+                        window.location.href = 'index.html';
+                    }
 
-        const score = correctCount; // Or convert to 100 scale
-        const accuracy = Math.round((correctCount / quizData.questions.length) * 100);
+                    try {
+                        notionKey = atob(encodedKey);
+                        resultsDb = atob(encodedDb);
+                    } catch (e) {
+                        console.error('Failed to decode credentials');
+                    }
 
-        // Submit to Notion
-        const btn = document.querySelector('#quizCard .btn');
-        btn.textContent = '제출 중...';
-        btn.disabled = true;
+                    function getHeaders() {
+                        return {
+                            'Content-Type': 'application/json',
+                            'x-notion-token': notionKey,
+                            'x-results-db': resultsDb
+                        };
+                    }
 
-        try {
-            await fetch('/.netlify/functions/notion', {
-                method: 'POST',
-                headers: getHeaders(),
-                body: JSON.stringify({
-                    action: 'submit',
-                    studentName: document.getElementById('studentName').value,
-                    materialId: materialId,
-                    score: score,
-                    accuracy: accuracy,
-                    timeTaken: timeTakenStr,
-                    answers: answers
-                })
-            });
+                    async function startQuiz() {
+                        const name = document.getElementById('studentName').value;
+                        if (!name) return alert('이름을 입력해주세요.');
 
-            showResult(score, accuracy);
-        } catch (error) {
-            alert('제출 실패: ' + error.message);
-            btn.textContent = '제출하기';
-            btn.disabled = false;
-        }
-        }
+                        document.getElementById('loginCard').style.display = 'none';
+                        document.getElementById('loading').style.display = 'block';
 
-        function showResult(score, accuracy) {
-            document.getElementById('quizCard').style.display = 'none';
-            document.getElementById('resultCard').style.display = 'block';
-            document.getElementById('scoreDisplay').textContent = `${score}점`;
-            document.getElementById('accuracyDisplay').textContent = `정답률: ${accuracy}%`;
-        }
-    </script>
-</body>
+                        try {
+                            const response = await fetch(`/.netlify/functions/notion?action=fetch&id=${materialId}`, {
+                                headers: getHeaders()
+                            });
+                            if (!response.ok) throw new Error('Failed to load quiz');
 
-</html>
+                            const data = await response.json();
+                            quizData = data;
+
+                            if (quizData.title) {
+                                document.getElementById('quizTitle').textContent = quizData.title;
+                            }
+
+                            renderQuiz();
+                            startTimer();
+
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('quizCard').style.display = 'block';
+                        } catch (error) {
+                            console.error(error);
+                            alert('퀴즈를 불러오는데 실패했습니다: ' + error.message);
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('loginCard').style.display = 'block';
+                        }
+                    }
+
+                    function startTimer() {
+                        startTime = new Date();
+                        timerInterval = setInterval(() => {
+                            const now = new Date();
+                            const diff = Math.floor((now - startTime) / 1000);
+                            const min = Math.floor(diff / 60).toString().padStart(2, '0');
+                            const sec = (diff % 60).toString().padStart(2, '0');
+                            document.getElementById('timer').textContent = `${min}:${sec}`;
+                        }, 1000);
+                    }
+
+                    function renderQuiz() {
+                        const container = document.getElementById('questionsContainer');
+                        container.innerHTML = '';
+
+                        if (!quizData || !quizData.questions) {
+                            container.innerHTML = '<p>문제가 없습니다.</p>';
+                            return;
+                        }
+
+                        quizData.questions.forEach((q, index) => {
+                            const qDiv = document.createElement('div');
+                            qDiv.className = 'question-item';
+                            qDiv.style.marginBottom = '2rem';
+                            qDiv.style.padding = '1rem';
+                            qDiv.style.border = '1px solid #eee';
+                            qDiv.style.borderRadius = '8px';
+
+                            let inputHtml = '';
+                            if (q.type === 'multiple-choice' || q.choices) {
+                                inputHtml = `<div class="choices">
+                        ${q.choices.map((choice, i) => `
+                            <label style="display: block; margin: 0.5rem 0; cursor: pointer;">
+                                <input type="radio" name="q_${index}" value="${choice}"> 
+                                ${choice}
+                            </label>
+                        `).join('')}
+                    </div>`;
+                            } else {
+                                inputHtml = `<input type="text" name="q_${index}" class="form-control" placeholder="답변을 입력하세요" style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">`;
+                            }
+
+                            qDiv.innerHTML = `
+                    <h3 style="margin-bottom: 1rem;">${index + 1}. ${q.question}</h3>
+                    ${inputHtml}
+                `;
+                            container.appendChild(qDiv);
+                        });
+                    }
+
+                    async function submitQuiz() {
+                        if (!confirm('정말로 제출하시겠습니까?')) return;
+
+                        clearInterval(timerInterval);
+                        const endTime = new Date();
+                        const timeTakenSec = Math.floor((endTime - startTime) / 1000);
+                        const timeTakenStr = `${Math.floor(timeTakenSec / 60)}분 ${timeTakenSec % 60}초`;
+
+                        let correctCount = 0;
+                        const answers = [];
+
+                        quizData.questions.forEach((q, index) => {
+                            let userAnswer = '';
+                            if (q.type === 'multiple-choice' || q.choices) {
+                                const selected = document.querySelector(`input[name="q_${index}"]:checked`);
+                                userAnswer = selected ? selected.value : '';
+                            } else {
+                                const input = document.querySelector(`input[name="q_${index}"]`);
+                                userAnswer = input ? input.value.trim() : '';
+                            }
+
+                            const isCorrect = userAnswer === q.answer;
+                            if (isCorrect) correctCount++;
+
+                            answers.push({
+                                questionId: index,
+                                question: q.question,
+                                userAnswer: userAnswer,
+                                correctAnswer: q.answer,
+                                isCorrect: isCorrect
+                            });
+                        });
+
+                        const score = Math.round((correctCount / quizData.questions.length) * 100);
+                        const accuracy = Math.round((correctCount / quizData.questions.length) * 100);
+
+                        // Submit to Notion
+                        const btn = document.querySelector('#quizCard .btn');
+                        const originalBtnText = btn.textContent;
+                        btn.textContent = '제출 중...';
+                        btn.disabled = true;
+
+                        try {
+                            await fetch('/.netlify/functions/notion', {
+                                method: 'POST',
+                                headers: getHeaders(),
+                                body: JSON.stringify({
+                                    action: 'submit',
+                                    studentName: document.getElementById('studentName').value,
+                                    materialId: materialId,
+                                    score: score,
+                                    accuracy: accuracy,
+                                    timeTaken: timeTakenStr,
+                                    answers: answers
+                                })
+                            });
+
+                            showResult(score, accuracy);
+                        } catch (error) {
+                            console.error(error);
+                            alert('제출 실패: ' + error.message);
+                            btn.textContent = originalBtnText;
+                            btn.disabled = false;
+                        }
+                    }
+
+                    function showResult(score, accuracy) {
+                        document.getElementById('quizCard').style.display = 'none';
+                        document.getElementById('resultCard').style.display = 'block';
+                        document.getElementById('scoreDisplay').textContent = `${score}점`;
+                        document.getElementById('accuracyDisplay').textContent = `정답률: ${accuracy}%`;
+                    }
+                </script>
+            </body>
+
+            </html>
