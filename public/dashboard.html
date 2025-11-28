@@ -105,7 +105,13 @@
 
             } catch (e) {
                 console.error(e);
-                container.innerHTML = '<p>데이터를 불러오는 중 오류가 발생했습니다.</p>';
+                // Show detailed error message
+                container.innerHTML = `<p style="color:red; text-align:center;">데이터를 불러오는 중 오류가 발생했습니다.<br>오류 내용: ${e.message}</p>`;
+
+                // Check if it's an index error
+                if (e.message.includes("The query requires an index")) {
+                    container.innerHTML += `<p style="text-align:center;">Firestore 인덱스가 필요합니다. 콘솔의 링크를 확인하거나 관리자에게 문의하세요.</p>`;
+                }
             }
         }
 
@@ -167,7 +173,7 @@
 
             } catch (e) {
                 console.error(e);
-                modalBody.innerHTML = '<p>결과를 불러오는 중 오류가 발생했습니다.</p>';
+                modalBody.innerHTML = `<p style="color:red;">결과를 불러오는 중 오류가 발생했습니다.<br>${e.message}</p>`;
             }
         };
 
