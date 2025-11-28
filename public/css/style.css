@@ -15,7 +15,6 @@
 
 body {
     font-family: 'Outfit', 'Inter', sans-serif;
-    /* Use Outfit if available, else Inter */
     background-color: var(--background-color);
     color: var(--text-color);
     margin: 0;
@@ -25,14 +24,11 @@ body {
 
 .container {
     max-width: 1000px;
-    /* Reduced from 1200px */
     margin: 0 auto;
     padding: 2rem;
     background-color: white;
-    /* Add background to container */
     min-height: 100vh;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
-    /* Add subtle shadow */
 }
 
 header {
@@ -198,7 +194,6 @@ th {
 .ox-btn:hover {
     background-color: #f0f9ff;
     border-color: var(--primary-color);
-    border-color: var(--primary-color);
     color: var(--primary-color);
     transform: translateY(-2px);
 }
@@ -256,21 +251,26 @@ th {
     justify-content: center;
     align-items: center;
     text-align: center;
-    min-height: 150px;
+    /* Aspect Ratio for Trump Card feel */
+    aspect-ratio: 2 / 3;
+    min-height: auto;
+    /* Reset */
+    padding: 1rem;
 }
 
 .folder-icon {
-    font-size: 3rem;
-    margin-bottom: 0.5rem;
+    font-size: 4rem;
+    /* Larger icon */
+    margin-bottom: 1rem;
     color: var(--primary-color);
 }
 
 .breadcrumb {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 1rem;
     font-size: 1.1rem;
     color: #666;
+    align-items: center;
 }
 
 .breadcrumb-item {
@@ -317,4 +317,118 @@ th {
 .context-menu-item:last-child {
     border-bottom-left-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
+}
+
+/* New Minimalist Card Styles */
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    /* Smaller width for trump card feel */
+    gap: 1.5rem;
+}
+
+.quiz-card {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    aspect-ratio: 2 / 3;
+    /* Trump Card Ratio */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.quiz-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary-color);
+}
+
+.quiz-card h3 {
+    font-size: 1.2rem;
+    margin: 0.5rem 0;
+    word-break: keep-all;
+}
+
+.quiz-card .card-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #cbd5e1;
+    /* Subtle icon color */
+}
+
+/* Toolbar Alignment */
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.toggle-btn {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.toggle-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    width: 90%;
+    max-width: 500px;
+    /* Standard modal width */
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+    width: auto;
 }
