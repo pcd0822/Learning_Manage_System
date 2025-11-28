@@ -6,60 +6,179 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>학생 - 퀴즈 풀기</title>
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        /* Student Specific Styles */
+        body {
+            background-color: #f0f9ff;
+            /* Light Sky Blue Background */
+        }
+
+        .container {
+            max-width: 800px;
+        }
+
+        .card {
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            border: 2px solid #e0f2fe;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #0ea5e9;
+            /* Sky Blue 500 */
+        }
+
+        .btn {
+            background-color: #0ea5e9;
+            border-radius: 50px;
+            /* Pill shape */
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #0284c7;
+            transform: scale(1.05);
+        }
+
+        .question-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 2px solid #f0f9ff;
+            transition: transform 0.2s;
+        }
+
+        .question-card:hover {
+            transform: translateY(-2px);
+            border-color: #bae6fd;
+        }
+
+        /* Character Animation */
+        .character-container {
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        .character {
+            font-size: 5rem;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            20%,
+            50%,
+            80%,
+            100% {
+                transform: translateY(0);
+            }
+
+            40% {
+                transform: translateY(-20px);
+            }
+
+            60% {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* OX Buttons Horizontal */
+        .ox-container {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .ox-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            font-size: 2rem;
+            border: 2px solid #ddd;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ox-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .ox-btn.selected {
+            background-color: #0ea5e9;
+            color: white;
+            border-color: #0ea5e9;
+        }
+    </style>
 </head>
 
 <body>
     <div class="container">
-        <header>
-            <h1>학습 퀴즈</h1>
+        <header style="text-align: center;">
+            <h1>🎓 즐거운 퀴즈 시간!</h1>
         </header>
 
         <!-- Login Section -->
-        <div class="card" id="loginCard">
-            <h2>시작하기</h2>
-            <p>이름을 입력하고 학습을 시작하세요.</p>
-            <input type="text" id="studentName" placeholder="이름 (예: 홍길동)">
-            <button class="btn" onclick="startQuiz()">학습 시작</button>
+        <div class="card" id="loginCard" style="text-align: center;">
+            <div class="character-container">
+                <div class="character">🐶</div>
+                <p>안녕? 나는 퀴즈 도우미 멍멍이야!</p>
+            </div>
+            <h2>준비됐니?</h2>
+            <p>이름을 입력하고 시작해보자!</p>
+            <input type="text" id="studentName" placeholder="이름 (예: 김철수)"
+                style="text-align: center; font-size: 1.2rem;">
+            <br>
+            <button class="btn" onclick="startQuiz()"
+                style="margin-top: 1rem; padding: 1rem 3rem; font-size: 1.2rem;">Start!</button>
         </div>
 
         <!-- Loading -->
-        <div id="loading">
-            <div class="spinner"></div>
-            <p>문제를 불러오고 있습니다...</p>
+        <div id="loading" style="display: none; text-align: center;">
+            <div class="character" style="font-size: 3rem;">⏳</div>
+            <p>문제를 불러오고 있어... 잠시만 기다려줘!</p>
         </div>
 
         <!-- Quiz Section -->
         <div class="card" id="quizCard" style="display: none;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-                <h2 id="quizTitle">퀴즈 제목</h2>
-                <div id="timer" style="font-weight: bold; color: var(--primary-color);">00:00</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; align-items: center;">
+                <h2 id="quizTitle" style="margin: 0;">퀴즈 제목</h2>
+                <div id="timer" style="font-weight: bold; color: #f59e0b; font-size: 1.2rem;">00:00</div>
             </div>
 
             <div id="questionsContainer"></div>
 
-            <button class="btn" onclick="submitQuiz()" style="margin-top: 2rem;">제출하기</button>
+            <button class="btn" onclick="submitQuiz()" style="margin-top: 2rem; width: 100%;">다 풀었어요! 제출하기</button>
         </div>
 
         <!-- Result Section -->
-        <div class="card" id="resultCard" style="display: none;">
-            <h2>학습 완료!</h2>
-            <div style="text-align: center; margin: 2rem 0;">
-                <h3 style="font-size: 3rem; margin: 0; color: var(--primary-color);" id="scoreDisplay">0점</h3>
-                <p id="accuracyDisplay">정답률: 0%</p>
+        <div class="card" id="resultCard" style="display: none; text-align: center;">
+            <div class="character" style="font-size: 4rem;">🎉</div>
+            <h2>와우! 수고했어!</h2>
+            <div style="margin: 2rem 0;">
+                <h3 style="font-size: 3rem; margin: 0; color: #0ea5e9;" id="scoreDisplay">0점</h3>
+                <p id="accuracyDisplay" style="color: #666;">정답률: 0%</p>
             </div>
-            <p>수고하셨습니다. 결과가 선생님께 전송되었습니다.</p>
-            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                <button class="btn" onclick="startReview()">오답 노트 / 복습하기</button>
+            <p>결과가 선생님께 전송되었어.</p>
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;">
+                <button class="btn" onclick="startReview()">오답 노트 확인하기</button>
                 <button class="btn btn-secondary" onclick="location.reload()">처음으로</button>
             </div>
         </div>
 
         <!-- Review Section -->
         <div class="card" id="reviewCard" style="display: none;">
-            <h2>오답 노트</h2>
-            <p>틀린 문제를 확인하고 해설을 읽어보세요.</p>
+            <h2>📝 오답 노트</h2>
+            <p>틀린 문제를 다시 한번 살펴볼까?</p>
             <div id="reviewContainer"></div>
-            <button class="btn" onclick="finishReview()" style="margin-top: 2rem;">복습 완료</button>
+            <button class="btn" onclick="finishReview()" style="margin-top: 2rem; width: 100%;">복습 완료!</button>
         </div>
     </div>
 
@@ -79,8 +198,9 @@
         const encodedDb = urlParams.get('d');
 
         if (!materialId || !encodedKey || !encodedDb) {
-            alert('잘못된 접근입니다. 링크를 다시 확인해주세요.');
-            window.location.href = 'index.html';
+            // Demo mode or Error
+            // alert('잘못된 접근입니다. 링크를 다시 확인해주세요.');
+            // window.location.href = 'index.html';
         }
 
         try {
@@ -149,7 +269,7 @@
             quizData.questions.forEach((q, index) => {
                 const div = document.createElement('div');
                 div.className = 'question-card';
-                div.innerHTML = `<p><strong>Q${index + 1}. ${q.question}</strong></p>`;
+                div.innerHTML = `<p style="font-size: 1.1rem;"><strong>Q${index + 1}. ${q.question}</strong></p>`;
 
                 if (q.type === 'ox-quiz') {
                     // OX Quiz: Horizontal Flex
@@ -161,22 +281,34 @@
                         </div>
                     `;
                 } else if (q.options) {
-                    // Multiple Choice: Horizontal Flex
-                    let optionsHtml = '<div class="options-container">';
+                    // Multiple Choice: Vertical but styled
+                    let optionsHtml = '<div class="options-container" style="display: flex; flex-direction: column; gap: 0.5rem;">';
                     q.options.forEach(opt => {
                         optionsHtml += `
-                            <label class="option-label">
-                                <input type="radio" name="q${index}" value="${opt}"> ${opt}
+                            <label class="option-label" style="padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+                                <input type="radio" name="q${index}" value="${opt}" style="margin-right: 0.5rem;"> ${opt}
                             </label>
                         `;
                     });
                     optionsHtml += '</div>';
                     div.innerHTML += optionsHtml;
                 } else {
-                    div.innerHTML += `<input type="text" name="q${index}" placeholder="답변을 입력하세요" style="width: 100%; padding: 0.5rem;">`;
+                    div.innerHTML += `<input type="text" name="q${index}" placeholder="답변을 입력하세요" style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; margin-top: 0.5rem;">`;
                 }
 
                 container.appendChild(div);
+            });
+
+            // Add click effect to radio labels
+            document.querySelectorAll('.option-label').forEach(label => {
+                label.addEventListener('click', function () {
+                    // Reset siblings
+                    const parent = this.parentElement;
+                    parent.querySelectorAll('.option-label').forEach(l => l.style.backgroundColor = 'white');
+                    // Set active
+                    this.style.backgroundColor = '#e0f2fe';
+                    this.querySelector('input').checked = true;
+                });
             });
         }
 
@@ -234,6 +366,13 @@
             document.getElementById('scoreDisplay').textContent = `${score}점 / ${total}문제`;
             document.getElementById('accuracyDisplay').textContent = `정답률: ${accuracy}%`;
 
+            // Confetti Effect
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+
             // Save to Notion
             const studentName = document.getElementById('studentName').value;
             try {
@@ -269,22 +408,23 @@
             const wrongAnswers = userAnswers.filter(a => !a.isCorrect);
 
             if (wrongAnswers.length === 0) {
-                container.innerHTML = '<p>틀린 문제가 없습니다! 완벽합니다.</p>';
+                container.innerHTML = '<p style="text-align:center; font-size:1.2rem;">틀린 문제가 없어! 정말 대단해! 👍</p>';
+                // confetti again?
                 return;
             }
 
             wrongAnswers.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'question-card';
-                div.style.backgroundColor = '#fef2f2';
-                div.style.border = '1px solid #fecaca';
+                div.style.backgroundColor = '#fff1f2'; // Light Red
+                div.style.border = '2px solid #fda4af';
 
                 div.innerHTML = `
                     <h3>Q${item.questionId}. ${item.question}</h3>
-                    <p><strong>나의 답:</strong> <span style="color: red; text-decoration: line-through;">${item.userAnswer || '(미입력)'}</span></p>
-                    <p><strong>정답:</strong> <span style="color: green;">${item.correctAnswer}</span></p>
-                    <div style="background: #fff; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-                        <strong>💡 해설/힌트:</strong>
+                    <p><strong>나의 답:</strong> <span style="color: #e11d48; text-decoration: line-through;">${item.userAnswer || '(미입력)'}</span></p>
+                    <p><strong>정답:</strong> <span style="color: #059669; font-weight:bold;">${item.correctAnswer}</span></p>
+                    <div style="background: #fff; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #ddd;">
+                        <strong>💡 선생님의 힌트:</strong>
                         <p>${item.explanation || '해설이 제공되지 않았습니다.'}</p>
                     </div>
                 `;
@@ -297,6 +437,14 @@
             const btn = document.querySelector('#reviewCard .btn');
             btn.textContent = '완료 처리 중...';
             btn.disabled = true;
+
+            // Confetti
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#0ea5e9', '#f59e0b']
+            });
 
             if (resultPageId) {
                 try {
@@ -313,8 +461,10 @@
                 }
             }
 
-            alert('복습이 완료되었습니다. 처음으로 돌아갑니다.');
-            window.location.reload();
+            setTimeout(() => {
+                alert('복습 완료! 참 잘했어!');
+                window.location.reload();
+            }, 1000);
         }
     </script>
 </body>
