@@ -3,8 +3,8 @@
     /* Sky Blue 500 */
     --secondary-color: #0284c7;
     /* Sky Blue 600 */
-    --background-color: #f0f9ff;
-    /* Sky Blue 50 */
+    --background-color: #f8fafc;
+    /* Slightly darker background for contrast */
     --text-color: #1f2937;
     --card-bg: #ffffff;
     --danger-color: #ef4444;
@@ -24,10 +24,15 @@ body {
 }
 
 .container {
-    max-width: 1200px;
-    /* Increased from 800px */
+    max-width: 1000px;
+    /* Reduced from 1200px */
     margin: 0 auto;
     padding: 2rem;
+    background-color: white;
+    /* Add background to container */
+    min-height: 100vh;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+    /* Add subtle shadow */
 }
 
 header {
