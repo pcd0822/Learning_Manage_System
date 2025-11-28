@@ -88,13 +88,14 @@
                     querySnapshot.forEach((doc) => {
                         const data = doc.data();
                         const date = data.createdAt.toDate().toLocaleDateString();
+                        const safeTitle = data.title.replace(/'/g, "\\'");
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td>${data.title}</td>
                             <td>${date}</td>
                             <td>${data.data.questions.length}</td>
                             <td>
-                                <button class="btn btn-sm" onclick="showResults('${doc.id}', '${data.title}')">결과 보기</button>
+                                <button class="btn btn-sm" onclick="showResults('${doc.id}', '${safeTitle}')">결과 보기</button>
                             </td>
                         `;
                         tbody.appendChild(tr);
@@ -118,71 +119,18 @@
             modal.style.display = 'flex';
 
             try {
-                // Query results where quizId matches. 
-                // Note: student.html saves 'quizId' as the Notion Page ID (materialId).
-                // But here we are passing the Firestore Document ID.
-                // This is a mismatch. 
-                // In teacher.html, we save to Firestore first, then Notion.
-                // The student link uses the Notion Page ID.
-                // So the 'quizId' in 'results' collection is the Notion Page ID.
-                // We need to find a way to link them.
-                // Option A: Store Firestore ID in Notion Page properties? Complex.
-                // Option B: Query 'results' by 'quizId' (Notion ID). But we don't have Notion ID here easily unless we stored it in the quiz doc.
-                // Let's check teacher.html: we save to Firestore, then Notion. We don't update Firestore with Notion ID.
-                // FIX: We should query results by... wait.
-                // If we can't easily link them, we might need to rely on the fact that we can't view results for now?
-                // NO, the user requested this feature.
-                // Let's assume for a moment that we can filter by something else or we need to fix the saving logic.
-                // Actually, let's look at teacher.html again.
-                // We save to Firestore: `addDoc(collection(db, "quizzes"), ...)`
-                // Then publish to Notion.
-                // We don't save the Notion Page ID back to the Firestore document.
-                // WE SHOULD DO THAT.
-                // But I can't edit teacher.html right now easily without risking errors again.
-                // Alternative: In student.html, we also have the 'id' param.
-                // If we want to show results here, we need to know which results belong to this quiz.
-                // Maybe we can filter results by 'quizTitle'? No, not unique.
-                // Okay, let's try to query results by 'quizId' assuming it MIGHT match the Firestore ID if we change the link generation?
-                // No, link generation is fixed to Notion ID.
-
-                // WORKAROUND:
-                // We will fetch ALL results and filter client-side by title? Risky.
-                // Better: Update teacher.html to store Notion Page ID in Firestore?
-                // Or, just query results by 'quizId' (which is Notion ID) and we need to know the Notion ID of this quiz.
-                // We don't have it in Firestore doc.
-
-                // Let's try to find results that match the title?
-                // Or... wait.
-                // If I can't change teacher.html safely...
-                // I can change dashboard.html to just show "No results found (Linkage missing)" if I can't find them.
-                // But I want to deliver.
-
-                // Let's assume for this task that I will try to match by 'quizId' being the Firestore ID.
-                // But student.html uses Notion ID.
-                // I will update student.html to ALSO accept a 'fid' (Firestore ID) parameter if present?
-                // But the link is generated in teacher.html.
-
-                // Okay, I will try to query results where `quizId` == `quizId` (Firestore ID).
-                // This will return empty for now because student.html saves Notion ID.
-                // I will add a note in the modal: "Notion 연동 퀴즈의 경우 Notion에서 결과를 확인해주세요."
-                // UNLESS I can fix the link generation.
-
-                // Wait, I CAN fix the link generation in teacher.html.
-                // I already restored teacher.html. I can edit it to include `fid=${docRef.id}` in the link!
-                // Yes! That's the solution.
-
-                // So, plan:
-                // 1. Update teacher.html to include `&fid=...` in the generated link.
-                // 2. Update student.html to read `fid` and save it as `firestoreId`.
-                // 3. Update dashboard.html to query results by `firestoreId`.
-
-                // But first, let's write dashboard.html assuming `firestoreId` is used.
-
+                // Query results where firestoreId matches. 
                 const q = query(collection(db, "results"), where("firestoreId", "==", quizId), orderBy("submittedAt", "desc"));
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
-                    modalBody.innerHTML = '<p>참여한 학생이 없습니다.</p>';
+                    modalBody.innerHTML = `
+                        <p>참여한 학생이 없습니다.</p>
+                        <p style="font-size:0.9rem; color:#666;">
+                            * 참고: 최근 업데이트 이전에 생성된 퀴즈 링크로 참여한 경우, 결과가 여기에 표시되지 않을 수 있습니다.<br>
+                            새로 퀴즈를 생성하여 테스트해주세요.
+                        </p>
+                    `;
                     return;
                 }
 
