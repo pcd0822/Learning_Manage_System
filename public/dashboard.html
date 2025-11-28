@@ -4,489 +4,347 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>학생 - 퀴즈 풀기</title>
+    <title>교사 대시보드</title>
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script type="module">
+        import { loginWithGoogle, logout, checkAuthState } from './js/auth.js';
+        import { db, collection, query, where, getDocs, orderBy } from './js/firebase-config.js';
+
+        let currentUser = null;
+        let currentView = 'card'; // 'card' or 'list'
+
+        window.logoutUser = async () => {
+            await logout();
+            window.location.href = 'teacher.html';
+        };
+
+        window.toggleView = (view) => {
+            currentView = view;
+            document.getElementById('btnCardView').classList.toggle('active', view === 'card');
+            document.getElementById('btnListView').classList.toggle('active', view === 'list');
+            loadQuizzes(currentUser.uid);
+        };
+
+        checkAuthState(async (user) => {
+            currentUser = user;
+            if (user) {
+                document.getElementById('userName').textContent = user.displayName;
+                loadQuizzes(user.uid);
+            } else {
+                alert('로그인이 필요합니다.');
+                window.location.href = 'teacher.html';
+            }
+        });
+
+        async function loadQuizzes(userId) {
+            const container = document.getElementById('quizList');
+            container.innerHTML = '<div class="spinner"></div>';
+
+            try {
+                const q = query(collection(db, "quizzes"), where("userId", "==", userId), orderBy("createdAt", "desc"));
+                const querySnapshot = await getDocs(q);
+
+                container.innerHTML = '';
+                if (querySnapshot.empty) {
+                    container.innerHTML = '<p>생성된 퀴즈가 없습니다.</p>';
+                    return;
+                }
+
+                if (currentView === 'card') {
+                    container.className = 'grid-container';
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const date = data.createdAt.toDate().toLocaleDateString();
+                        const div = document.createElement('div');
+                        div.className = 'card quiz-card';
+                        div.onclick = () => showResults(doc.id, data.title); // Click card to view results
+                        div.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h3>${data.title}</h3>
+                                <span style="color:#666; font-size:0.9rem;">${date}</span>
+                            </div>
+                            <p>문항 수: ${data.data.questions.length}개</p>
+                            <div style="margin-top:1rem; text-align:right;">
+                                <span style="color: var(--primary-color); font-weight:bold;">클릭하여 결과 보기 &rarr;</span>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.className = '';
+                    const table = document.createElement('table');
+                    table.innerHTML = `
+                        <thead>
+                            <tr>
+                                <th>제목</th>
+                                <th>생성일</th>
+                                <th>문항 수</th>
+                                <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    `;
+                    const tbody = table.querySelector('tbody');
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const date = data.createdAt.toDate().toLocaleDateString();
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${data.title}</td>
+                            <td>${date}</td>
+                            <td>${data.data.questions.length}</td>
+                            <td>
+                                <button class="btn btn-sm" onclick="showResults('${doc.id}', '${data.title}')">결과 보기</button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    container.appendChild(table);
+                }
+
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = '<p>데이터를 불러오는 중 오류가 발생했습니다.</p>';
+            }
+        }
+
+        window.showResults = async (quizId, title) => {
+            const modal = document.getElementById('resultModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = `'${title}' 참여 현황`;
+            modalBody.innerHTML = '<div class="spinner"></div>';
+            modal.style.display = 'flex';
+
+            try {
+                // Query results where quizId matches. 
+                // Note: student.html saves 'quizId' as the Notion Page ID (materialId).
+                // But here we are passing the Firestore Document ID.
+                // This is a mismatch. 
+                // In teacher.html, we save to Firestore first, then Notion.
+                // The student link uses the Notion Page ID.
+                // So the 'quizId' in 'results' collection is the Notion Page ID.
+                // We need to find a way to link them.
+                // Option A: Store Firestore ID in Notion Page properties? Complex.
+                // Option B: Query 'results' by 'quizId' (Notion ID). But we don't have Notion ID here easily unless we stored it in the quiz doc.
+                // Let's check teacher.html: we save to Firestore, then Notion. We don't update Firestore with Notion ID.
+                // FIX: We should query results by... wait.
+                // If we can't easily link them, we might need to rely on the fact that we can't view results for now?
+                // NO, the user requested this feature.
+                // Let's assume for a moment that we can filter by something else or we need to fix the saving logic.
+                // Actually, let's look at teacher.html again.
+                // We save to Firestore: `addDoc(collection(db, "quizzes"), ...)`
+                // Then publish to Notion.
+                // We don't save the Notion Page ID back to the Firestore document.
+                // WE SHOULD DO THAT.
+                // But I can't edit teacher.html right now easily without risking errors again.
+                // Alternative: In student.html, we also have the 'id' param.
+                // If we want to show results here, we need to know which results belong to this quiz.
+                // Maybe we can filter results by 'quizTitle'? No, not unique.
+                // Okay, let's try to query results by 'quizId' assuming it MIGHT match the Firestore ID if we change the link generation?
+                // No, link generation is fixed to Notion ID.
+
+                // WORKAROUND:
+                // We will fetch ALL results and filter client-side by title? Risky.
+                // Better: Update teacher.html to store Notion Page ID in Firestore?
+                // Or, just query results by 'quizId' (which is Notion ID) and we need to know the Notion ID of this quiz.
+                // We don't have it in Firestore doc.
+
+                // Let's try to find results that match the title?
+                // Or... wait.
+                // If I can't change teacher.html safely...
+                // I can change dashboard.html to just show "No results found (Linkage missing)" if I can't find them.
+                // But I want to deliver.
+
+                // Let's assume for this task that I will try to match by 'quizId' being the Firestore ID.
+                // But student.html uses Notion ID.
+                // I will update student.html to ALSO accept a 'fid' (Firestore ID) parameter if present?
+                // But the link is generated in teacher.html.
+
+                // Okay, I will try to query results where `quizId` == `quizId` (Firestore ID).
+                // This will return empty for now because student.html saves Notion ID.
+                // I will add a note in the modal: "Notion 연동 퀴즈의 경우 Notion에서 결과를 확인해주세요."
+                // UNLESS I can fix the link generation.
+
+                // Wait, I CAN fix the link generation in teacher.html.
+                // I already restored teacher.html. I can edit it to include `fid=${docRef.id}` in the link!
+                // Yes! That's the solution.
+
+                // So, plan:
+                // 1. Update teacher.html to include `&fid=...` in the generated link.
+                // 2. Update student.html to read `fid` and save it as `firestoreId`.
+                // 3. Update dashboard.html to query results by `firestoreId`.
+
+                // But first, let's write dashboard.html assuming `firestoreId` is used.
+
+                const q = query(collection(db, "results"), where("firestoreId", "==", quizId), orderBy("submittedAt", "desc"));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    modalBody.innerHTML = '<p>참여한 학생이 없습니다.</p>';
+                    return;
+                }
+
+                let html = `
+                    <table class="result-table">
+                        <thead>
+                            <tr>
+                                <th>이름</th>
+                                <th>점수</th>
+                                <th>정답률</th>
+                                <th>소요시간</th>
+                                <th>제출일시</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                querySnapshot.forEach(doc => {
+                    const r = doc.data();
+                    const time = r.submittedAt.toDate().toLocaleString();
+                    html += `
+                        <tr>
+                            <td>${r.studentName}</td>
+                            <td>${r.score} / ${r.total}</td>
+                            <td>${r.accuracy}%</td>
+                            <td>${r.timeTaken}</td>
+                            <td>${time}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+                modalBody.innerHTML = html;
+
+            } catch (e) {
+                console.error(e);
+                modalBody.innerHTML = '<p>결과를 불러오는 중 오류가 발생했습니다.</p>';
+            }
+        };
+
+        window.closeModal = () => {
+            document.getElementById('resultModal').style.display = 'none';
+        };
+
+        // Close modal on outside click
+        window.onclick = (event) => {
+            const modal = document.getElementById('resultModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        };
+    </script>
     <style>
-        /* Student Specific Styles */
-        body {
-            background-color: #f0f9ff;
-            /* Light Sky Blue Background */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
         }
 
-        .container {
-            max-width: 800px;
-        }
-
-        .card {
-            border-radius: 20px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-            border: 2px solid #e0f2fe;
-        }
-
-        h1,
-        h2,
-        h3 {
-            color: #0ea5e9;
-            /* Sky Blue 500 */
-        }
-
-        .btn {
-            background-color: #0ea5e9;
-            border-radius: 50px;
-            /* Pill shape */
-            font-weight: bold;
-            transition: transform 0.2s;
-        }
-
-        .btn:hover {
-            background-color: #0284c7;
-            transform: scale(1.05);
-        }
-
-        .question-card {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            border: 2px solid #f0f9ff;
-            transition: transform 0.2s;
-        }
-
-        .question-card:hover {
-            transform: translateY(-2px);
-            border-color: #bae6fd;
-        }
-
-        /* Character Animation */
-        .character-container {
-            text-align: center;
-            margin: 2rem 0;
-        }
-
-        .character {
-            font-size: 5rem;
-            animation: bounce 2s infinite;
-        }
-
-        @keyframes bounce {
-
-            0%,
-            20%,
-            50%,
-            80%,
-            100% {
-                transform: translateY(0);
-            }
-
-            40% {
-                transform: translateY(-20px);
-            }
-
-            60% {
-                transform: translateY(-10px);
-            }
-        }
-
-        /* OX Buttons Horizontal */
-        .ox-container {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            margin-top: 1rem;
-        }
-
-        .ox-btn {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            font-size: 2rem;
-            border: 2px solid #ddd;
-            background: white;
+        .quiz-card {
             cursor: pointer;
-            transition: all 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
-        .ox-btn:hover {
-            transform: scale(1.1);
+        .quiz-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary-color);
         }
 
-        .ox-btn.selected {
-            background-color: #0ea5e9;
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            justify-content: flex-end;
+        }
+
+        .toggle-btn {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+
+        .toggle-btn.active {
+            background: var(--primary-color);
             color: white;
-            border-color: #0ea5e9;
+            border-color: var(--primary-color);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .btn-sm {
+            padding: 0.3rem 0.8rem;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <header style="text-align: center;">
-            <h1>🎓 즐거운 퀴즈 시간!</h1>
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>대시보드</h1>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span id="userName" style="margin-right: 0.5rem; font-weight: bold;"></span>
+                <button class="btn btn-secondary" onclick="logoutUser()"
+                    style="width: auto; padding: 0.5rem 1rem; margin: 0;">로그아웃</button>
+                <a href="teacher.html" class="btn" style="width: auto; padding: 0.5rem 1rem; margin: 0;">새 퀴즈 만들기</a>
+            </div>
         </header>
 
-        <!-- Login Section -->
-        <div class="card" id="loginCard" style="text-align: center;">
-            <div class="character-container">
-                <div class="character">🐶</div>
-                <p>안녕? 나는 퀴즈 도우미 멍멍이야!</p>
-            </div>
-            <h2>준비됐니?</h2>
-            <p>이름을 입력하고 시작해보자!</p>
-            <input type="text" id="studentName" placeholder="이름 (예: 김철수)"
-                style="text-align: center; font-size: 1.2rem;">
-            <br>
-            <button class="btn" onclick="startQuiz()"
-                style="margin-top: 1rem; padding: 1rem 3rem; font-size: 1.2rem;">Start!</button>
+        <div class="view-toggle">
+            <button class="toggle-btn active" id="btnCardView" onclick="toggleView('card')">카드 보기</button>
+            <button class="toggle-btn" id="btnListView" onclick="toggleView('list')">목록 보기</button>
         </div>
 
-        <!-- Loading -->
-        <div id="loading" style="display: none; text-align: center;">
-            <div class="character" style="font-size: 3rem;">⏳</div>
-            <p>문제를 불러오고 있어... 잠시만 기다려줘!</p>
-        </div>
-
-        <!-- Quiz Section -->
-        <div class="card" id="quizCard" style="display: none;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; align-items: center;">
-                <h2 id="quizTitle" style="margin: 0;">퀴즈 제목</h2>
-                <div id="timer" style="font-weight: bold; color: #f59e0b; font-size: 1.2rem;">00:00</div>
-            </div>
-
-            <div id="questionsContainer"></div>
-
-            <button class="btn" onclick="submitQuiz()" style="margin-top: 2rem; width: 100%;">다 풀었어요! 제출하기</button>
-        </div>
-
-        <!-- Result Section -->
-        <div class="card" id="resultCard" style="display: none; text-align: center;">
-            <div class="character" style="font-size: 4rem;">🎉</div>
-            <h2>와우! 수고했어!</h2>
-            <div style="margin: 2rem 0;">
-                <h3 style="font-size: 3rem; margin: 0; color: #0ea5e9;" id="scoreDisplay">0점</h3>
-                <p id="accuracyDisplay" style="color: #666;">정답률: 0%</p>
-            </div>
-            <p>결과가 선생님께 전송되었어.</p>
-            <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;">
-                <button class="btn" onclick="startReview()">오답 노트 확인하기</button>
-                <button class="btn btn-secondary" onclick="location.reload()">처음으로</button>
-            </div>
-        </div>
-
-        <!-- Review Section -->
-        <div class="card" id="reviewCard" style="display: none;">
-            <h2>📝 오답 노트</h2>
-            <p>틀린 문제를 다시 한번 살펴볼까?</p>
-            <div id="reviewContainer"></div>
-            <button class="btn" onclick="finishReview()" style="margin-top: 2rem; width: 100%;">복습 완료!</button>
+        <div id="quizList">
+            <!-- Quizzes will be loaded here -->
         </div>
     </div>
 
-    <script type="module">
-        import { db, collection, addDoc } from './js/firebase-config.js';
-
-        let quizData = null;
-        let startTime = null;
-        let timerInterval = null;
-        let materialId = null;
-        let notionKey = null;
-        let resultsDb = null;
-        let firestoreId = null;
-        let userAnswers = []; // Store answers for review
-
-        // Get ID and Credentials from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        materialId = urlParams.get('id');
-        const encodedKey = urlParams.get('k');
-        const encodedDb = urlParams.get('d');
-        firestoreId = urlParams.get('fid');
-
-        if (!materialId || !encodedKey || !encodedDb) {
-            // Demo mode or Error
-        }
-
-        try {
-            notionKey = atob(encodedKey);
-            resultsDb = atob(encodedDb);
-        } catch (e) {
-            console.error('Failed to decode credentials');
-        }
-
-        function getHeaders() {
-            return {
-                'Content-Type': 'application/json',
-                'x-notion-token': notionKey,
-                'x-results-db': resultsDb
-            };
-        }
-
-        window.startQuiz = async () => {
-            const name = document.getElementById('studentName').value;
-            if (!name) return alert('이름을 입력해주세요.');
-
-            document.getElementById('loginCard').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
-
-            try {
-                const response = await fetch(`/.netlify/functions/notion?action=fetch&id=${materialId}`, {
-                    headers: getHeaders()
-                });
-                if (!response.ok) throw new Error('Failed to load quiz');
-
-                const data = await response.json();
-                quizData = data;
-
-                if (quizData.title) {
-                    document.getElementById('quizTitle').textContent = quizData.title;
-                }
-
-                renderQuiz();
-                startTimer();
-
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('quizCard').style.display = 'block';
-            } catch (error) {
-                console.error(error);
-                alert('퀴즈를 불러오는데 실패했습니다: ' + error.message);
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('loginCard').style.display = 'block';
-            }
-        };
-
-        function startTimer() {
-            startTime = new Date();
-            timerInterval = setInterval(() => {
-                const now = new Date();
-                const diff = Math.floor((now - startTime) / 1000);
-                const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
-                const seconds = (diff % 60).toString().padStart(2, '0');
-                document.getElementById('timer').textContent = `${minutes}:${seconds}`;
-            }, 1000);
-        }
-
-        function renderQuiz() {
-            const container = document.getElementById('questionsContainer');
-            container.innerHTML = '';
-
-            quizData.questions.forEach((q, index) => {
-                const div = document.createElement('div');
-                div.className = 'question-card';
-                div.innerHTML = `<p style="font-size: 1.1rem;"><strong>Q${index + 1}. ${q.question}</strong></p>`;
-
-                if (q.type === 'ox-quiz') {
-                    // OX Quiz: Horizontal Flex
-                    div.innerHTML += `
-                        <div class="ox-container">
-                            <button class="ox-btn" onclick="selectOx(this, 'O', ${index})">O</button>
-                            <button class="ox-btn" onclick="selectOx(this, 'X', ${index})">X</button>
-                            <input type="hidden" name="q${index}" id="q${index}">
-                        </div>
-                    `;
-                } else if (q.options) {
-                    // Multiple Choice: Vertical but styled
-                    let optionsHtml = '<div class="options-container" style="display: flex; flex-direction: column; gap: 0.5rem;">';
-                    q.options.forEach(opt => {
-                        optionsHtml += `
-                            <label class="option-label" style="padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
-                                <input type="radio" name="q${index}" value="${opt}" style="margin-right: 0.5rem;"> ${opt}
-                            </label>
-                        `;
-                    });
-                    optionsHtml += '</div>';
-                    div.innerHTML += optionsHtml;
-                } else {
-                    div.innerHTML += `<input type="text" name="q${index}" placeholder="답변을 입력하세요" style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; margin-top: 0.5rem;">`;
-                }
-
-                container.appendChild(div);
-            });
-
-            // Add click effect to radio labels
-            document.querySelectorAll('.option-label').forEach(label => {
-                label.addEventListener('click', function () {
-                    // Reset siblings
-                    const parent = this.parentElement;
-                    parent.querySelectorAll('.option-label').forEach(l => l.style.backgroundColor = 'white');
-                    // Set active
-                    this.style.backgroundColor = '#e0f2fe';
-                    this.querySelector('input').checked = true;
-                });
-            });
-        }
-
-        window.selectOx = (btn, value, index) => {
-            const container = btn.parentElement;
-            container.querySelectorAll('.ox-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            document.getElementById(`q${index}`).value = value;
-        };
-
-        window.submitQuiz = async () => {
-            clearInterval(timerInterval);
-            const answers = [];
-            let score = 0;
-            const total = quizData.questions.length;
-
-            // Calculate Time Taken
-            const now = new Date();
-            const diff = Math.floor((now - startTime) / 1000);
-            const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
-            const seconds = (diff % 60).toString().padStart(2, '0');
-            const timeTaken = `${minutes}분 ${seconds}초`;
-
-            quizData.questions.forEach((q, index) => {
-                let userAnswer = '';
-                if (q.type === 'ox-quiz') {
-                    userAnswer = document.getElementById(`q${index}`).value;
-                } else if (q.options) {
-                    const selected = document.querySelector(`input[name="q${index}"]:checked`);
-                    if (selected) userAnswer = selected.value;
-                } else {
-                    const input = document.querySelector(`input[name="q${index}"]`);
-                    if (input) userAnswer = input.value;
-                }
-
-                const isCorrect = userAnswer && q.answer && userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase();
-                if (isCorrect) score++;
-
-                answers.push({
-                    questionId: index + 1,
-                    question: q.question,
-                    userAnswer: userAnswer,
-                    correctAnswer: q.answer,
-                    isCorrect: isCorrect,
-                    explanation: q.explanation
-                });
-            });
-
-            userAnswers = answers;
-            const accuracy = Math.round((score / total) * 100);
-
-            // Show Result
-            document.getElementById('quizCard').style.display = 'none';
-            document.getElementById('resultCard').style.display = 'block';
-            document.getElementById('scoreDisplay').textContent = `${score}점 / ${total}문제`;
-            document.getElementById('accuracyDisplay').textContent = `정답률: ${accuracy}%`;
-
-            // Confetti Effect
-            confetti({
-                particleCount: 150,
-                spread: 70,
-                origin: { y: 0.6 }
-            });
-
-            // Save to Firestore
-            const studentName = document.getElementById('studentName').value;
-            try {
-                await addDoc(collection(db, "results"), {
-                    quizId: materialId,
-                    firestoreId: firestoreId, // Link to Firestore Quiz Doc
-                    studentName: studentName,
-                    score: score,
-                    total: total,
-                    accuracy: accuracy,
-                    timeTaken: timeTaken,
-                    answers: answers,
-                    submittedAt: new Date()
-                });
-                console.log("Result saved to Firestore");
-            } catch (e) {
-                console.error("Error saving to Firestore:", e);
-            }
-
-            // Save to Notion
-            try {
-                const response = await fetch('/.netlify/functions/notion', {
-                    method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify({
-                        action: 'submit',
-                        materialId: materialId,
-                        studentName: studentName,
-                        score: score,
-                        accuracy: accuracy,
-                        timeTaken: timeTaken,
-                        answers: answers
-                    })
-                });
-                const result = await response.json();
-                if (result.pageId) {
-                    localStorage.setItem('lastResultPageId', result.pageId);
-                }
-            } catch (error) {
-                console.error('Failed to submit results to Notion', error);
-            }
-        };
-
-        window.startReview = () => {
-            document.getElementById('resultCard').style.display = 'none';
-            document.getElementById('reviewCard').style.display = 'block';
-
-            const container = document.getElementById('reviewContainer');
-            container.innerHTML = '';
-
-            const wrongAnswers = userAnswers.filter(a => !a.isCorrect);
-
-            if (wrongAnswers.length === 0) {
-                container.innerHTML = '<p style="text-align:center; font-size:1.2rem;">틀린 문제가 없어! 정말 대단해! 👍</p>';
-                // confetti again?
-                return;
-            }
-
-            wrongAnswers.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'question-card';
-                div.style.backgroundColor = '#fff1f2'; // Light Red
-                div.style.border = '2px solid #fda4af';
-
-                div.innerHTML = `
-                    <h3>Q${item.questionId}. ${item.question}</h3>
-                    <p><strong>나의 답:</strong> <span style="color: #e11d48; text-decoration: line-through;">${item.userAnswer || '(미입력)'}</span></p>
-                    <p><strong>정답:</strong> <span style="color: #059669; font-weight:bold;">${item.correctAnswer}</span></p>
-                    <div style="background: #fff; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #ddd;">
-                        <strong>💡 선생님의 힌트:</strong>
-                        <p>${item.explanation || '해설이 제공되지 않았습니다.'}</p>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        };
-
-        window.finishReview = async () => {
-            const resultPageId = localStorage.getItem('lastResultPageId');
-            const btn = document.querySelector('#reviewCard .btn');
-            btn.textContent = '완료 처리 중...';
-            btn.disabled = true;
-
-            // Confetti
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#0ea5e9', '#f59e0b']
-            });
-
-            if (resultPageId) {
-                try {
-                    await fetch('/.netlify/functions/notion', {
-                        method: 'POST',
-                        headers: getHeaders(),
-                        body: JSON.stringify({
-                            action: 'review_complete',
-                            pageId: resultPageId
-                        })
-                    });
-                } catch (e) {
-                    console.error('Failed to update review status', e);
-                }
-            }
-
-            setTimeout(() => {
-                alert('복습 완료! 참 잘했어!');
-                window.location.reload();
-            }, 1000);
-        };
-    </script>
+    <!-- Result Modal -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">참여 현황</h2>
+            <div id="modalBody"></div>
+        </div>
+    </div>
 </body>
 
 </html>
