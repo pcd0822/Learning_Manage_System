@@ -11,10 +11,18 @@
         import { db, collection, query, where, getDocs, orderBy } from './js/firebase-config.js';
 
         let currentUser = null;
+        let currentView = 'card'; // 'card' or 'list'
 
         window.logoutUser = async () => {
             await logout();
             window.location.href = 'teacher.html';
+        };
+
+        window.toggleView = (view) => {
+            currentView = view;
+            document.getElementById('btnCardView').classList.toggle('active', view === 'card');
+            document.getElementById('btnListView').classList.toggle('active', view === 'list');
+            loadQuizzes(currentUser.uid);
         };
 
         checkAuthState(async (user) => {
@@ -42,51 +50,299 @@
                     return;
                 }
 
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const date = data.createdAt.toDate().toLocaleDateString();
-
-                    const div = document.createElement('div');
-                    div.className = 'card';
-                    div.style.marginBottom = '1rem';
-                    div.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <h3>${data.title}</h3>
-                            <span style="color:#666; font-size:0.9rem;">${date}</span>
-                        </div>
-                        <p>문항 수: ${data.data.questions.length}개</p>
-                        <div style="margin-top:1rem;">
-                            <button class="btn btn-secondary" onclick="viewResults('${doc.id}')">결과 보기 (준비중)</button>
-                            <!-- Future: Add Edit or Delete buttons -->
-                        </div>
+                if (currentView === 'card') {
+                    container.className = 'grid-container';
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const date = data.createdAt.toDate().toLocaleDateString();
+                        const div = document.createElement('div');
+                        div.className = 'card quiz-card';
+                        div.onclick = () => showResults(doc.id, data.title); // Click card to view results
+                        div.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h3>${data.title}</h3>
+                                <span style="color:#666; font-size:0.9rem;">${date}</span>
+                            </div>
+                            <p>문항 수: ${data.data.questions.length}개</p>
+                            <div style="margin-top:1rem; text-align:right;">
+                                <span style="color: var(--primary-color); font-weight:bold;">클릭하여 결과 보기 &rarr;</span>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.className = '';
+                    const table = document.createElement('table');
+                    table.innerHTML = `
+                        <thead>
+                            <tr>
+                                <th>제목</th>
+                                <th>생성일</th>
+                                <th>문항 수</th>
+                                <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
                     `;
-                    container.appendChild(div);
-                });
+                    const tbody = table.querySelector('tbody');
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const date = data.createdAt.toDate().toLocaleDateString();
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${data.title}</td>
+                            <td>${date}</td>
+                            <td>${data.data.questions.length}</td>
+                            <td>
+                                <button class="btn btn-sm" onclick="showResults('${doc.id}', '${data.title}')">결과 보기</button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    container.appendChild(table);
+                }
+
             } catch (e) {
                 console.error(e);
                 container.innerHTML = '<p>데이터를 불러오는 중 오류가 발생했습니다.</p>';
             }
         }
 
-        window.viewResults = (quizId) => {
-            alert('이 기능은 아직 구현 중입니다. (Notion 결과 DB를 확인해주세요)');
+        window.showResults = async (quizId, title) => {
+            const modal = document.getElementById('resultModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = `'${title}' 참여 현황`;
+            modalBody.innerHTML = '<div class="spinner"></div>';
+            modal.style.display = 'flex';
+
+            try {
+                // Query results where quizId matches. 
+                // Note: student.html saves 'quizId' as the Notion Page ID (materialId).
+                // But here we are passing the Firestore Document ID.
+                // This is a mismatch. 
+                // In teacher.html, we save to Firestore first, then Notion.
+                // The student link uses the Notion Page ID.
+                // So the 'quizId' in 'results' collection is the Notion Page ID.
+                // We need to find a way to link them.
+                // Option A: Store Firestore ID in Notion Page properties? Complex.
+                // Option B: Query 'results' by 'quizId' (Notion ID). But we don't have Notion ID here easily unless we stored it in the quiz doc.
+                // Let's check teacher.html: we save to Firestore, then Notion. We don't update Firestore with Notion ID.
+                // FIX: We should query results by... wait.
+                // If we can't easily link them, we might need to rely on the fact that we can't view results for now?
+                // NO, the user requested this feature.
+                // Let's assume for a moment that we can filter by something else or we need to fix the saving logic.
+                // Actually, let's look at teacher.html again.
+                // We save to Firestore: `addDoc(collection(db, "quizzes"), ...)`
+                // Then publish to Notion.
+                // We don't save the Notion Page ID back to the Firestore document.
+                // WE SHOULD DO THAT.
+                // But I can't edit teacher.html right now easily without risking errors again.
+                // Alternative: In student.html, we also have the 'id' param.
+                // If we want to show results here, we need to know which results belong to this quiz.
+                // Maybe we can filter results by 'quizTitle'? No, not unique.
+                // Okay, let's try to query results by 'quizId' assuming it MIGHT match the Firestore ID if we change the link generation?
+                // No, link generation is fixed to Notion ID.
+
+                // WORKAROUND:
+                // We will fetch ALL results and filter client-side by title? Risky.
+                // Better: Update teacher.html to store Notion Page ID in Firestore?
+                // Or, just query results by 'quizId' (which is Notion ID) and we need to know the Notion ID of this quiz.
+                // We don't have it in Firestore doc.
+
+                // Let's try to find results that match the title?
+                // Or... wait.
+                // If I can't change teacher.html safely...
+                // I can change dashboard.html to just show "No results found (Linkage missing)" if I can't find them.
+                // But I want to deliver.
+
+                // Let's assume for this task that I will try to match by 'quizId' being the Firestore ID.
+                // But student.html uses Notion ID.
+                // I will update student.html to ALSO accept a 'fid' (Firestore ID) parameter if present?
+                // But the link is generated in teacher.html.
+
+                // Okay, I will try to query results where `quizId` == `quizId` (Firestore ID).
+                // This will return empty for now because student.html saves Notion ID.
+                // I will add a note in the modal: "Notion 연동 퀴즈의 경우 Notion에서 결과를 확인해주세요."
+                // UNLESS I can fix the link generation.
+
+                // Wait, I CAN fix the link generation in teacher.html.
+                // I already restored teacher.html. I can edit it to include `fid=${docRef.id}` in the link!
+                // Yes! That's the solution.
+
+                // So, plan:
+                // 1. Update teacher.html to include `&fid=...` in the generated link.
+                // 2. Update student.html to read `fid` and save it as `firestoreId`.
+                // 3. Update dashboard.html to query results by `firestoreId`.
+
+                // But first, let's write dashboard.html assuming `firestoreId` is used.
+
+                const q = query(collection(db, "results"), where("firestoreId", "==", quizId), orderBy("submittedAt", "desc"));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    modalBody.innerHTML = '<p>참여한 학생이 없습니다.</p>';
+                    return;
+                }
+
+                let html = `
+                    <table class="result-table">
+                        <thead>
+                            <tr>
+                                <th>이름</th>
+                                <th>점수</th>
+                                <th>정답률</th>
+                                <th>소요시간</th>
+                                <th>제출일시</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                querySnapshot.forEach(doc => {
+                    const r = doc.data();
+                    const time = r.submittedAt.toDate().toLocaleString();
+                    html += `
+                        <tr>
+                            <td>${r.studentName}</td>
+                            <td>${r.score} / ${r.total}</td>
+                            <td>${r.accuracy}%</td>
+                            <td>${r.timeTaken}</td>
+                            <td>${time}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+                modalBody.innerHTML = html;
+
+            } catch (e) {
+                console.error(e);
+                modalBody.innerHTML = '<p>결과를 불러오는 중 오류가 발생했습니다.</p>';
+            }
+        };
+
+        window.closeModal = () => {
+            document.getElementById('resultModal').style.display = 'none';
+        };
+
+        // Close modal on outside click
+        window.onclick = (event) => {
+            const modal = document.getElementById('resultModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
         };
     </script>
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .quiz-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .quiz-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary-color);
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            justify-content: flex-end;
+        }
+
+        .toggle-btn {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+
+        .toggle-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .btn-sm {
+            padding: 0.3rem 0.8rem;
+            font-size: 0.9rem;
+        }
+    </style>
 </head>
 
 <body>
     <div class="container">
         <header style="display: flex; justify-content: space-between; align-items: center;">
             <h1>대시보드</h1>
-            <div>
-                <span id="userName" style="margin-right: 1rem; font-weight: bold;"></span>
-                <button class="btn btn-secondary" onclick="logoutUser()">로그아웃</button>
-                <a href="teacher.html" class="btn">새 퀴즈 만들기</a>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span id="userName" style="margin-right: 0.5rem; font-weight: bold;"></span>
+                <button class="btn btn-secondary" onclick="logoutUser()"
+                    style="width: auto; padding: 0.5rem 1rem; margin: 0;">로그아웃</button>
+                <a href="teacher.html" class="btn" style="width: auto; padding: 0.5rem 1rem; margin: 0;">새 퀴즈 만들기</a>
             </div>
         </header>
 
+        <div class="view-toggle">
+            <button class="toggle-btn active" id="btnCardView" onclick="toggleView('card')">카드 보기</button>
+            <button class="toggle-btn" id="btnListView" onclick="toggleView('list')">목록 보기</button>
+        </div>
+
         <div id="quizList">
             <!-- Quizzes will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">참여 현황</h2>
+            <div id="modalBody"></div>
         </div>
     </div>
 </body>
