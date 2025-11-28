@@ -43,11 +43,10 @@
             const container = document.getElementById('quizList');
             container.innerHTML = '<div class="spinner"></div>';
             updateBreadcrumb();
+            updateToolbar();
 
             try {
-                // 1. Fetch Folders (only if in root or subfolder logic implemented)
-                // For now, folders are only at root level or nested? Let's assume single level nesting for simplicity first, or recursive.
-                // Let's query folders where parentId == currentFolderId
+                // 1. Fetch Folders
                 const folderQ = query(collection(db, "folders"), where("userId", "==", currentUser.uid), where("parentId", "==", currentFolderId));
                 const folderSnap = await getDocs(folderQ);
 
@@ -55,20 +54,12 @@
                 folderSnap.forEach(doc => folders.push({ id: doc.id, ...doc.data(), type: 'folder' }));
 
                 // 2. Fetch Quizzes
-                // Query quizzes where folderId == currentFolderId
-                // Note: Legacy quizzes have no folderId. We treat missing folderId as root (null).
-                // But Firestore query for missing field is tricky.
-                // If currentFolderId is null, we want quizzes with folderId == null OR folderId does not exist.
-                // Easier: Fetch all quizzes for user and filter client side for now (since we don't have many).
-                // Optimization: Add 'folderId: null' to all new quizzes.
-
                 const quizQ = query(collection(db, "quizzes"), where("userId", "==", currentUser.uid));
                 const quizSnap = await getDocs(quizQ);
 
                 const quizzes = [];
                 quizSnap.forEach(doc => {
                     const data = doc.data();
-                    // Filter by folder
                     if (currentFolderId === null) {
                         if (!data.folderId) quizzes.push({ id: doc.id, ...data, type: 'quiz' });
                     } else {
@@ -76,8 +67,6 @@
                     }
                 });
 
-                // Sort: Folders first, then Quizzes. Both by name or date? Let's do Date desc.
-                // Actually folders usually by name, quizzes by date.
                 folders.sort((a, b) => a.name.localeCompare(b.name));
                 quizzes.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 
@@ -86,7 +75,7 @@
                 container.innerHTML = '';
 
                 if (items.length === 0) {
-                    container.innerHTML = '<p>이 폴더에는 항목이 없습니다.</p>';
+                    container.innerHTML = '<p style="text-align:center; color:#999;">이 폴더에는 항목이 없습니다.</p>';
                     return;
                 }
 
@@ -103,20 +92,14 @@
                                 <h3>${item.name}</h3>
                             `;
                         } else {
-                            const date = item.createdAt.toDate().toLocaleDateString();
+                            // Minimalist Trump Card Style
                             div.className = 'card quiz-card';
                             // Right click context menu
                             div.oncontextmenu = (e) => showContextMenu(e, item.id);
                             div.onclick = () => showResults(item.id, item.title);
                             div.innerHTML = `
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <h3>${item.title}</h3>
-                                    <span style="color:#666; font-size:0.9rem;">${date}</span>
-                                </div>
-                                <p>문항 수: ${item.data.questions.length}개</p>
-                                <div style="margin-top:1rem; text-align:right;">
-                                    <span style="color: var(--primary-color); font-weight:bold;">클릭하여 결과 보기 &rarr;</span>
-                                </div>
+                                <div class="card-icon">📝</div>
+                                <h3>${item.title}</h3>
                             `;
                         }
                         container.appendChild(div);
@@ -154,7 +137,7 @@
                                 <td>${date}</td>
                                 <td>
                                     <button class="btn btn-sm" onclick="showResults('${item.id}', '${safeTitle}')">결과</button>
-                                    <button class="btn btn-sm btn-secondary" onclick="moveQuizPrompt('${item.id}')">이동</button>
+                                    <button class="btn btn-sm btn-secondary" onclick="openMoveQuizModal('${item.id}')">이동</button>
                                 </td>
                             `;
                         }
@@ -203,6 +186,16 @@
             });
         }
 
+        function updateToolbar() {
+            // Hide Import button if in root
+            const importBtn = document.getElementById('btnImport');
+            if (currentFolderId === null) {
+                importBtn.style.display = 'none';
+            } else {
+                importBtn.style.display = 'inline-block';
+            }
+        }
+
         window.createFolder = async () => {
             const name = prompt("새 폴더 이름을 입력하세요:");
             if (!name) return;
@@ -240,39 +233,41 @@
             if (e.target == document.getElementById('addQuizModal')) {
                 document.getElementById('addQuizModal').style.display = 'none';
             }
+            if (e.target == document.getElementById('moveQuizModal')) {
+                document.getElementById('moveQuizModal').style.display = 'none';
+            }
         };
 
-        window.moveQuizPrompt = async (quizId = selectedQuizId) => {
-            // Show modal with folder list to move to
-            // For simplicity, let's just use a prompt or a simple modal.
-            // Let's use a prompt for now asking for folder name? No, that's hard.
-            // Let's show a simple list of folders in a modal.
+        // Move Quiz Modal Logic
+        window.openMoveQuizModal = async (quizId = selectedQuizId) => {
+            selectedQuizId = quizId; // Ensure selectedQuizId is set
+            const modal = document.getElementById('moveQuizModal');
+            const select = document.getElementById('moveFolderSelect');
 
-            // Re-use Add Quiz Modal logic but reversed? 
-            // Let's just implement "Move to Root" and "Move to..." (requires UI).
-            // For MVP requested: "학습자료를 우클릭해서 폴더로 분류할 수 있도록 하고"
+            modal.style.display = 'flex';
+            select.innerHTML = '<option>로딩 중...</option>';
 
-            // Let's fetch all folders and show in a prompt-like overlay
             const folders = await fetchAllFolders();
-            let list = "이동할 폴더를 선택하세요:\n0. 최상위 (Root)\n";
-            folders.forEach((f, i) => {
-                list += `${i + 1}. ${f.name}\n`;
+            select.innerHTML = '<option value="root">최상위 (Root)</option>';
+
+            folders.forEach(f => {
+                // Don't show current folder if possible, but simple is fine
+                const option = document.createElement('option');
+                option.value = f.id;
+                option.textContent = f.name;
+                select.appendChild(option);
             });
+        };
 
-            const choice = prompt(list);
-            if (choice === null) return;
-
-            const index = parseInt(choice);
-            let targetId = null;
-
-            if (index === 0) targetId = null;
-            else if (index > 0 && index <= folders.length) targetId = folders[index - 1].id;
-            else return alert("잘못된 선택입니다.");
+        window.confirmMoveQuiz = async () => {
+            const select = document.getElementById('moveFolderSelect');
+            const targetId = select.value === 'root' ? null : select.value;
 
             try {
-                await updateDoc(doc(db, "quizzes", quizId), {
+                await updateDoc(doc(db, "quizzes", selectedQuizId), {
                     folderId: targetId
                 });
+                document.getElementById('moveQuizModal').style.display = 'none';
                 loadContent();
             } catch (e) {
                 alert("이동 실패: " + e.message);
@@ -296,8 +291,6 @@
             modal.style.display = 'flex';
             list.innerHTML = '<div class="spinner"></div>';
 
-            // Fetch quizzes that are in Root (folderId == null)
-            // We assume "Add Quiz" means bringing in unorganized quizzes.
             const q = query(collection(db, "quizzes"), where("userId", "==", currentUser.uid));
             const snap = await getDocs(q);
 
@@ -308,10 +301,11 @@
                 if (!data.folderId) { // Only show root quizzes
                     count++;
                     const div = document.createElement('div');
-                    div.style.padding = '0.5rem';
+                    div.style.padding = '0.8rem';
                     div.style.borderBottom = '1px solid #eee';
                     div.style.display = 'flex';
                     div.style.justifyContent = 'space-between';
+                    div.style.alignItems = 'center';
                     div.innerHTML = `
                         <span>${data.title}</span>
                         <button class="btn btn-sm" onclick="moveQuizToCurrent('${doc.id}')">추가</button>
@@ -320,7 +314,7 @@
                 }
             });
 
-            if (count === 0) list.innerHTML = '<p>추가할 수 있는 자료가 없습니다 (모두 분류됨).</p>';
+            if (count === 0) list.innerHTML = '<p style="text-align:center; color:#666;">추가할 수 있는 자료가 없습니다 (모두 분류됨).</p>';
         };
 
         window.moveQuizToCurrent = async (quizId) => {
@@ -328,8 +322,7 @@
                 await updateDoc(doc(db, "quizzes", quizId), {
                     folderId: currentFolderId
                 });
-                // Remove from list
-                openAddQuizModal(); // Refresh
+                openAddQuizModal(); // Refresh list
                 loadContent(); // Refresh background
             } catch (e) {
                 alert("추가 실패: " + e.message);
@@ -338,6 +331,10 @@
 
         window.closeAddQuizModal = () => {
             document.getElementById('addQuizModal').style.display = 'none';
+        };
+
+        window.closeMoveQuizModal = () => {
+            document.getElementById('moveQuizModal').style.display = 'none';
         };
 
         // Existing Result Logic
@@ -428,15 +425,17 @@
             </div>
         </header>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="toolbar">
             <div id="breadcrumb" class="breadcrumb">
                 <!-- Breadcrumbs -->
             </div>
-            <div class="view-toggle" style="margin-bottom: 0;">
-                <button class="btn btn-sm" onclick="createFolder()" style="margin-right: 0.5rem;">+ 폴더 생성</button>
-                <button class="btn btn-sm" onclick="openAddQuizModal()" style="margin-right: 0.5rem;">+ 자료 가져오기</button>
-                <button class="toggle-btn active" id="btnCardView" onclick="toggleView('card')">카드</button>
-                <button class="toggle-btn" id="btnListView" onclick="toggleView('list')">목록</button>
+            <div class="toolbar-actions">
+                <button class="btn btn-sm" onclick="createFolder()">+ 폴더 생성</button>
+                <button class="btn btn-sm" id="btnImport" onclick="openAddQuizModal()">+ 자료 가져오기</button>
+                <div style="display:inline-flex; gap:0.2rem; margin-left:0.5rem;">
+                    <button class="toggle-btn active" id="btnCardView" onclick="toggleView('card')">카드</button>
+                    <button class="toggle-btn" id="btnListView" onclick="toggleView('list')">목록</button>
+                </div>
             </div>
         </div>
 
@@ -464,9 +463,20 @@
         </div>
     </div>
 
+    <!-- Move Quiz Modal -->
+    <div id="moveQuizModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close-btn" onclick="closeMoveQuizModal()">&times;</span>
+            <h2>폴더로 이동</h2>
+            <p>이동할 폴더를 선택하세요.</p>
+            <select id="moveFolderSelect" style="margin-top:1rem;"></select>
+            <button class="btn" onclick="confirmMoveQuiz()" style="margin-top:1rem;">이동하기</button>
+        </div>
+    </div>
+
     <!-- Context Menu -->
     <div id="contextMenu" class="context-menu">
-        <div class="context-menu-item" onclick="moveQuizPrompt()">폴더로 이동...</div>
+        <div class="context-menu-item" onclick="openMoveQuizModal()">폴더로 이동...</div>
     </div>
 </body>
 
