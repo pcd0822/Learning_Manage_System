@@ -75,6 +75,9 @@ exports.handler = async (event, context) => {
             if (action === 'publish') {
                 const { title, quizData, count } = body;
 
+                // Ensure quizData is a string for the code block
+                const quizDataString = typeof quizData === 'string' ? quizData : JSON.stringify(quizData, null, 2);
+
                 // Create page in Materials DB
                 const response = await notion.pages.create({
                     parent: { database_id: MATERIALS_DB_ID },
@@ -88,7 +91,7 @@ exports.handler = async (event, context) => {
                             object: 'block',
                             type: 'code',
                             code: {
-                                rich_text: [{ text: { content: JSON.stringify(quizData) } }],
+                                rich_text: [{ text: { content: quizDataString } }],
                                 language: 'json'
                             }
                         }
