@@ -285,13 +285,13 @@
 
                     if (response.ok) {
                         const result = await response.json();
-                        showResult(result.pageId, settings.notionKey, settings.resultsDb); // Pass credentials for link generation
+                        showResult(result.pageId, settings.notionKey, settings.resultsDb, docRef.id); // Pass credentials and Firestore ID
                     } else {
                         console.error("Notion publish failed");
                         alert("Firestore에는 저장되었으나 Notion 발행에 실패했습니다.");
                         // Still show success for Firestore?
                         // For now, let's treat it as partial success
-                        showResult(result.pageId, settings.notionKey, settings.resultsDb);
+                        showResult(result.pageId, settings.notionKey, settings.resultsDb, docRef.id);
                     }
                 } else {
                     alert('Notion 설정이 없어 Firestore에만 저장되었습니다.');
@@ -312,14 +312,14 @@
             }
         };
 
-        window.showResult = (pageId, key, rDb) => {
+        window.showResult = (pageId, key, rDb, firestoreId) => {
             document.getElementById('previewArea').style.display = 'none';
             document.getElementById('resultArea').style.display = 'block';
 
             const encodedKey = btoa(key);
             const encodedDb = btoa(rDb);
 
-            const link = `${window.location.origin}/student.html?id=${pageId}&k=${encodedKey}&d=${encodedDb}`;
+            const link = `${window.location.origin}/student.html?id=${pageId}&k=${encodedKey}&d=${encodedDb}&fid=${firestoreId}`;
             document.getElementById('shareLink').value = link;
         };
 
