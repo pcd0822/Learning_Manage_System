@@ -41,7 +41,8 @@
             container.innerHTML = '<div class="spinner"></div>';
 
             try {
-                const q = query(collection(db, "quizzes"), where("userId", "==", userId), orderBy("createdAt", "desc"));
+                // Remove orderBy to avoid index requirement
+                const q = query(collection(db, "quizzes"), where("userId", "==", userId));
                 const querySnapshot = await getDocs(q);
 
                 container.innerHTML = '';
@@ -50,14 +51,20 @@
                     return;
                 }
 
+                // Client-side sorting
+                const quizzes = [];
+                querySnapshot.forEach((doc) => {
+                    quizzes.push({ id: doc.id, ...doc.data() });
+                });
+                quizzes.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+
                 if (currentView === 'card') {
                     container.className = 'grid-container';
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
+                    quizzes.forEach((data) => {
                         const date = data.createdAt.toDate().toLocaleDateString();
                         const div = document.createElement('div');
                         div.className = 'card quiz-card';
-                        div.onclick = () => showResults(doc.id, data.title); // Click card to view results
+                        div.onclick = () => showResults(data.id, data.title); // Click card to view results
                         div.innerHTML = `
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <h3>${data.title}</h3>
@@ -85,8 +92,7 @@
                         <tbody></tbody>
                     `;
                     const tbody = table.querySelector('tbody');
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
+                    quizzes.forEach((data) => {
                         const date = data.createdAt.toDate().toLocaleDateString();
                         const safeTitle = data.title.replace(/'/g, "\\'");
                         const tr = document.createElement('tr');
@@ -95,7 +101,7 @@
                             <td>${date}</td>
                             <td>${data.data.questions.length}</td>
                             <td>
-                                <button class="btn btn-sm" onclick="showResults('${doc.id}', '${safeTitle}')">결과 보기</button>
+                                <button class="btn btn-sm" onclick="showResults('${data.id}', '${safeTitle}')">결과 보기</button>
                             </td>
                         `;
                         tbody.appendChild(tr);
@@ -125,8 +131,8 @@
             modal.style.display = 'flex';
 
             try {
-                // Query results where firestoreId matches. 
-                const q = query(collection(db, "results"), where("firestoreId", "==", quizId), orderBy("submittedAt", "desc"));
+                // Query results where firestoreId matches. Remove orderBy to avoid index error.
+                const q = query(collection(db, "results"), where("firestoreId", "==", quizId));
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
@@ -139,6 +145,13 @@
                     `;
                     return;
                 }
+
+                // Client-side sorting
+                const results = [];
+                querySnapshot.forEach(doc => {
+                    results.push(doc.data());
+                });
+                results.sort((a, b) => b.submittedAt.seconds - a.submittedAt.seconds);
 
                 let html = `
                     <table class="result-table">
@@ -154,8 +167,7 @@
                         <tbody>
                 `;
 
-                querySnapshot.forEach(doc => {
-                    const r = doc.data();
+                results.forEach(r => {
                     const time = r.submittedAt.toDate().toLocaleString();
                     html += `
                         <tr>
