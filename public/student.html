@@ -182,13 +182,16 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { db, collection, addDoc } from './js/firebase-config.js';
+
         let quizData = null;
         let startTime = null;
         let timerInterval = null;
         let materialId = null;
         let notionKey = null;
         let resultsDb = null;
+        let firestoreId = null;
         let userAnswers = []; // Store answers for review
 
         // Get ID and Credentials from URL
@@ -196,11 +199,10 @@
         materialId = urlParams.get('id');
         const encodedKey = urlParams.get('k');
         const encodedDb = urlParams.get('d');
+        firestoreId = urlParams.get('fid');
 
         if (!materialId || !encodedKey || !encodedDb) {
             // Demo mode or Error
-            // alert('잘못된 접근입니다. 링크를 다시 확인해주세요.');
-            // window.location.href = 'index.html';
         }
 
         try {
@@ -218,7 +220,7 @@
             };
         }
 
-        async function startQuiz() {
+        window.startQuiz = async () => {
             const name = document.getElementById('studentName').value;
             if (!name) return alert('이름을 입력해주세요.');
 
@@ -249,7 +251,7 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('loginCard').style.display = 'block';
             }
-        }
+        };
 
         function startTimer() {
             startTime = new Date();
@@ -312,14 +314,14 @@
             });
         }
 
-        function selectOx(btn, value, index) {
+        window.selectOx = (btn, value, index) => {
             const container = btn.parentElement;
             container.querySelectorAll('.ox-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             document.getElementById(`q${index}`).value = value;
-        }
+        };
 
-        async function submitQuiz() {
+        window.submitQuiz = async () => {
             clearInterval(timerInterval);
             const answers = [];
             let score = 0;
@@ -373,8 +375,27 @@
                 origin: { y: 0.6 }
             });
 
-            // Save to Notion
+            // Save to Firestore
             const studentName = document.getElementById('studentName').value;
+            try {
+                await addDoc(collection(db, "results"), {
+                    quizId: materialId,
+                    firestoreId: firestoreId, // Link to Firestore Quiz Doc
+                    studentName: studentName,
+                    score: score,
+                    total: total,
+                    accuracy: accuracy,
+                    timeTaken: timeTaken,
+                    answers: answers,
+                    submittedAt: new Date()
+                });
+                console.log("Result saved to Firestore");
+            } catch (e) {
+                console.error("Error saving to Firestore:", e);
+                alert("결과 저장 중 오류가 발생했습니다 (Firestore): " + e.message);
+            }
+
+            // Save to Notion
             try {
                 const response = await fetch('/.netlify/functions/notion', {
                     method: 'POST',
@@ -394,11 +415,11 @@
                     localStorage.setItem('lastResultPageId', result.pageId);
                 }
             } catch (error) {
-                console.error('Failed to submit results', error);
+                console.error('Failed to submit results to Notion', error);
             }
-        }
+        };
 
-        function startReview() {
+        window.startReview = () => {
             document.getElementById('resultCard').style.display = 'none';
             document.getElementById('reviewCard').style.display = 'block';
 
@@ -430,9 +451,9 @@
                 `;
                 container.appendChild(div);
             });
-        }
+        };
 
-        async function finishReview() {
+        window.finishReview = async () => {
             const resultPageId = localStorage.getItem('lastResultPageId');
             const btn = document.querySelector('#reviewCard .btn');
             btn.textContent = '완료 처리 중...';
@@ -465,7 +486,7 @@
                 alert('복습 완료! 참 잘했어!');
                 window.location.reload();
             }, 1000);
-        }
+        };
     </script>
 </body>
 
