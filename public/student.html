@@ -395,27 +395,35 @@
                 alert("결과 저장 중 오류가 발생했습니다 (Firestore): " + e.message);
             }
 
-            // Save to Notion
-            try {
-                const response = await fetch('/.netlify/functions/notion', {
-                    method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify({
-                        action: 'submit',
-                        materialId: materialId,
-                        studentName: studentName,
-                        score: score,
-                        accuracy: accuracy,
-                        timeTaken: timeTaken,
-                        answers: answers
-                    })
-                });
-                const result = await response.json();
-                if (result.pageId) {
-                    localStorage.setItem('lastResultPageId', result.pageId);
+            // Save to Notion (학습결과 DB) — 공유 링크에 학습결과 DB ID가 있어야 함
+            if (resultsDb) {
+                try {
+                    const response = await fetch('/.netlify/functions/notion', {
+                        method: 'POST',
+                        headers: getHeaders(),
+                        body: JSON.stringify({
+                            action: 'submit',
+                            materialId: materialId,
+                            studentName: studentName,
+                            score: score,
+                            accuracy: accuracy,
+                            timeTaken: timeTaken,
+                            answers: answers
+                        })
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.pageId) {
+                        localStorage.setItem('lastResultPageId', result.pageId);
+                    } else if (!response.ok && result && result.error) {
+                        console.error('Notion 학습결과 DB 저장 실패:', result.error);
+                        alert('학습결과 DB 저장 실패: ' + result.error);
+                    }
+                } catch (error) {
+                    console.error('Failed to submit results to Notion', error);
+                    alert('학습결과 DB 저장 중 오류: ' + (error.message || '네트워크 오류'));
                 }
-            } catch (error) {
-                console.error('Failed to submit results to Notion', error);
+            } else {
+                console.warn('학습결과 DB ID가 없어 Notion에 저장하지 않음. 선생님에게 새 공유 링크를 받아 주세요.');
             }
         };
 
