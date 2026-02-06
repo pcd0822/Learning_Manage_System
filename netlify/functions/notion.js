@@ -75,10 +75,13 @@ exports.handler = async (event, context) => {
             if (action === 'publish') {
                 const { title, quizData, count } = body;
 
-                // Ensure quizData is a string for the code block
+                // 학습자료(재료) DB 필수 속성: 제목(title), 문항수(number), 생성일(date) — 이름이 정확히 일치해야 함
+                if (!MATERIALS_DB_ID) {
+                    return { statusCode: 400, body: JSON.stringify({ error: '학습자료 DB ID가 없습니다. 설정에서 재료 DB ID를 입력해 주세요.' }) };
+                }
+
                 const quizDataString = typeof quizData === 'string' ? quizData : JSON.stringify(quizData, null, 2);
 
-                // Create page in Materials DB
                 const response = await notion.pages.create({
                     parent: { database_id: MATERIALS_DB_ID },
                     properties: {
@@ -107,20 +110,27 @@ exports.handler = async (event, context) => {
             if (action === 'submit') {
                 const { studentName, materialId, score, accuracy, timeTaken, answers } = body;
 
-                // Format answers as requested: "Q1. Answer"
+                if (!RESULTS_DB_ID || RESULTS_DB_ID === 'null') {
+                    return {
+                        statusCode: 400,
+                        body: JSON.stringify({ error: '학습결과 DB ID가 없습니다. 선생님 설정에서 학습결과 DB ID를 저장한 뒤, 새 공유 링크로 다시 접속해 주세요.' })
+                    };
+                }
+
                 const formattedAnswers = answers.map(a => `Q${a.questionId}. ${a.userAnswer}`).join('\n');
+                const safeText = (str, maxLen = 2000) => (str && str.length > maxLen ? str.slice(0, maxLen) + '…' : str);
 
                 const response = await notion.pages.create({
                     parent: { database_id: RESULTS_DB_ID },
                     properties: {
-                        '학생이름': { title: [{ text: { content: studentName } }] },
+                        '학생이름': { title: [{ text: { content: (studentName || '이름없음').slice(0, 255) } }] },
                         '학습자료': { relation: [{ id: materialId }] },
                         '점수': { number: score },
                         '정답률': { number: accuracy },
-                        '소요시간': { rich_text: [{ text: { content: timeTaken } }] },
-                        '제출답안': { rich_text: [{ text: { content: formattedAnswers } }] },
+                        '소요시간': { rich_text: [{ text: { content: safeText(timeTaken) } }] },
+                        '제출답안': { rich_text: [{ text: { content: safeText(formattedAnswers) } }] },
                         '제출일시': { date: { start: new Date().toISOString() } },
-                        '복습완료': { checkbox: false } // Initialize as false
+                        '복습완료': { checkbox: false }
                     }
                 });
 
@@ -151,9 +161,21 @@ exports.handler = async (event, context) => {
 
     } catch (error) {
         console.error("Notion Error:", error);
+        let message = error.message || String(error);
+        if (error.body) {
+            try {
+                const parsed = typeof error.body === 'string' ? JSON.parse(error.body) : error.body;
+                if (parsed && parsed.message) message = parsed.message;
+            } catch (_) {
+                if (typeof error.body === 'string') message = error.body;
+            }
+        }
+        const hint = (message.includes('validation') || message.includes('property'))
+            ? ' Notion DB 속성 확인: 학습자료 DB → 제목, 문항수, 생성일 / 학습결과 DB → 학생이름, 학습자료(관계), 점수, 정답률, 소요시간, 제출답안, 제출일시, 복습완료'
+            : '';
         return {
-            statusCode: 500,
-            body: JSON.stringify({ error: error.message }),
+            statusCode: error.status || 500,
+            body: JSON.stringify({ error: message + hint }),
         };
     }
 };
