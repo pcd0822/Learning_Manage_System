@@ -8,13 +8,14 @@
     <link rel="stylesheet" href="css/style.css">
     <script type="module">
         import { loginWithGoogle, logout, checkAuthState } from './js/auth.js';
-        import { db, collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc } from './js/firebase-config.js';
+        import { db, collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, deleteDoc } from './js/firebase-config.js';
 
         let currentUser = null;
         let currentView = 'card'; // 'card' or 'list'
         let currentFolderId = null; // null means root
         let currentFolderName = 'Home';
         let breadcrumbPath = [{ id: null, name: 'Home' }];
+        let deleteMode = false;
 
         window.logoutUser = async () => {
             await logout();
@@ -85,35 +86,63 @@
                         const div = document.createElement('div');
 
                         if (item.type === 'folder') {
-                            div.className = 'card quiz-card folder-card';
-                            div.onclick = () => enterFolder(item.id, item.name);
-                            div.innerHTML = `
-                                <div class="folder-icon">📁</div>
-                                <h3>${item.name}</h3>
-                            `;
+                            div.className = 'card quiz-card folder-card' + (deleteMode ? ' delete-mode' : '');
+                            div.dataset.id = item.id;
+                            div.dataset.type = 'folder';
+                            div.dataset.name = (item.name || '').replace(/"/g, '&quot;');
+                            if (deleteMode) {
+                                div.innerHTML = `
+                                    <label class="delete-check-wrap" onclick="event.stopPropagation()">
+                                        <input type="checkbox" class="delete-check" data-id="${item.id}" data-type="folder">
+                                    </label>
+                                    <div class="folder-icon">📁</div>
+                                    <h3>${item.name}</h3>
+                                `;
+                                div.onclick = () => div.querySelector('.delete-check').click();
+                            } else {
+                                div.onclick = () => enterFolder(item.id, item.name);
+                                div.innerHTML = `
+                                    <div class="folder-icon">📁</div>
+                                    <h3>${item.name}</h3>
+                                `;
+                            }
                         } else {
-                            // Minimalist Trump Card Style
-                            div.className = 'card quiz-card';
-                            // Right click context menu
-                            div.oncontextmenu = (e) => showContextMenu(e, item.id);
-                            div.onclick = () => showResults(item.id, item.title);
-                            div.innerHTML = `
-                                <div class="card-icon">📝</div>
-                                <h3>${item.title}</h3>
-                            `;
+                            div.className = 'card quiz-card' + (deleteMode ? ' delete-mode' : '');
+                            div.dataset.id = item.id;
+                            div.dataset.type = 'quiz';
+                            const safeTitle = (item.title || '').replace(/"/g, '&quot;').replace(/'/g, "\\'");
+                            if (deleteMode) {
+                                div.innerHTML = `
+                                    <label class="delete-check-wrap" onclick="event.stopPropagation()">
+                                        <input type="checkbox" class="delete-check" data-id="${item.id}" data-type="quiz">
+                                    </label>
+                                    <div class="card-icon">📝</div>
+                                    <h3>${item.title}</h3>
+                                `;
+                                div.onclick = () => div.querySelector('.delete-check').click();
+                            } else {
+                                div.oncontextmenu = (e) => showContextMenu(e, item.id);
+                                div.onclick = () => showResults(item.id, item.title);
+                                div.innerHTML = `
+                                    <div class="card-icon">📝</div>
+                                    <h3>${item.title}</h3>
+                                `;
+                            }
                         }
                         container.appendChild(div);
                     });
                 } else {
                     container.className = '';
                     const table = document.createElement('table');
+                    const thCheck = deleteMode ? '<th style="width:2.5rem;"><input type="checkbox" id="selectAllList" onclick="toggleSelectAllList()" title="전체 선택"></th>' : '';
                     table.innerHTML = `
                         <thead>
                             <tr>
+                                ${thCheck}
                                 <th>유형</th>
                                 <th>이름</th>
                                 <th>생성일</th>
-                                <th>관리</th>
+                                ${deleteMode ? '' : '<th>관리</th>'}
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -121,24 +150,25 @@
                     const tbody = table.querySelector('tbody');
                     items.forEach(item => {
                         const tr = document.createElement('tr');
+                        const checkCell = deleteMode ? `<td><input type="checkbox" class="delete-check" data-id="${item.id}" data-type="${item.type}"></td>` : '';
                         if (item.type === 'folder') {
-                            tr.innerHTML = `
+                            tr.innerHTML = checkCell + `
                                 <td>📁</td>
                                 <td style="cursor:pointer; font-weight:bold;" onclick="enterFolder('${item.id}', '${item.name}')">${item.name}</td>
                                 <td>-</td>
-                                <td>-</td>
+                                ${deleteMode ? '' : '<td>-</td>'}
                             `;
                         } else {
                             const date = item.createdAt.toDate().toLocaleDateString();
                             const safeTitle = item.title.replace(/'/g, "\\'");
-                            tr.innerHTML = `
+                            tr.innerHTML = checkCell + `
                                 <td>📝</td>
                                 <td>${item.title}</td>
                                 <td>${date}</td>
-                                <td>
+                                ${deleteMode ? '' : `<td>
                                     <button class="btn btn-sm" onclick="showResults('${item.id}', '${safeTitle}')">결과</button>
                                     <button class="btn btn-sm btn-secondary" onclick="openMoveQuizModal('${item.id}')">이동</button>
-                                </td>
+                                </td>`}
                             `;
                         }
                         tbody.appendChild(tr);
@@ -187,14 +217,84 @@
         }
 
         function updateToolbar() {
-            // Hide Import button if in root
             const importBtn = document.getElementById('btnImport');
             if (currentFolderId === null) {
                 importBtn.style.display = 'none';
             } else {
                 importBtn.style.display = 'inline-block';
             }
+            const btnCreateFolder = document.getElementById('btnCreateFolder');
+            const btnDelete = document.getElementById('btnDelete');
+            const deleteActions = document.getElementById('deleteActions');
+            if (deleteMode) {
+                if (btnCreateFolder) btnCreateFolder.style.display = 'none';
+                if (btnDelete) btnDelete.style.display = 'none';
+                if (deleteActions) deleteActions.style.display = 'inline-flex';
+            } else {
+                if (btnCreateFolder) btnCreateFolder.style.display = 'inline-block';
+                if (btnDelete) btnDelete.style.display = 'inline-block';
+                if (deleteActions) deleteActions.style.display = 'none';
+            }
         }
+
+        window.enterDeleteMode = () => {
+            deleteMode = true;
+            updateToolbar();
+            loadContent();
+        };
+
+        window.cancelDeleteMode = () => {
+            deleteMode = false;
+            updateToolbar();
+            loadContent();
+        };
+
+        window.toggleSelectAllList = () => {
+            const all = document.getElementById('selectAllList');
+            if (!all) return;
+            document.querySelectorAll('.delete-check').forEach(cb => { cb.checked = all.checked; });
+        };
+
+        window.deleteSelected = async () => {
+            const checked = document.querySelectorAll('.delete-check:checked');
+            if (checked.length === 0) {
+                alert('삭제할 항목을 선택해 주세요.');
+                return;
+            }
+            const folders = [];
+            const quizzes = [];
+            checked.forEach(el => {
+                if (el.dataset.type === 'folder') folders.push(el.dataset.id);
+                else quizzes.push(el.dataset.id);
+            });
+            const msg = `선택한 항목을 삭제합니다.\n폴더 ${folders.length}개, 문제 ${quizzes.length}개\n계속할까요?`;
+            if (!confirm(msg)) return;
+
+            try {
+                for (const folderId of folders) {
+                    const subFolderQ = query(collection(db, "folders"), where("parentId", "==", folderId));
+                    const subSnap = await getDocs(subFolderQ);
+                    for (const d of subSnap.docs) {
+                        await updateDoc(doc(db, "folders", d.id), { parentId: currentFolderId });
+                    }
+                    const quizInFolderQ = query(collection(db, "quizzes"), where("folderId", "==", folderId));
+                    const quizSnap = await getDocs(quizInFolderQ);
+                    for (const d of quizSnap.docs) {
+                        await updateDoc(doc(db, "quizzes", d.id), { folderId: null });
+                    }
+                    await deleteDoc(doc(db, "folders", folderId));
+                }
+                for (const quizId of quizzes) {
+                    await deleteDoc(doc(db, "quizzes", quizId));
+                }
+                deleteMode = false;
+                updateToolbar();
+                loadContent();
+            } catch (e) {
+                console.error(e);
+                alert('삭제 중 오류: ' + e.message);
+            }
+        };
 
         window.createFolder = async () => {
             const name = prompt("새 폴더 이름을 입력하세요:");
@@ -430,7 +530,12 @@
                 <!-- Breadcrumbs -->
             </div>
             <div class="toolbar-actions">
-                <button class="btn btn-sm" onclick="createFolder()">+ 폴더 생성</button>
+                <button class="btn btn-sm" id="btnCreateFolder" onclick="createFolder()">+ 폴더 생성</button>
+                <button class="btn btn-sm btn-secondary" id="btnDelete" onclick="enterDeleteMode()">삭제</button>
+                <div id="deleteActions" style="display:none; align-items:center; gap:0.4rem;">
+                    <button class="btn btn-sm" onclick="deleteSelected()">선택 항목 삭제</button>
+                    <button class="btn btn-sm btn-secondary" onclick="cancelDeleteMode()">취소</button>
+                </div>
                 <button class="btn btn-sm" id="btnImport" onclick="openAddQuizModal()">+ 자료 가져오기</button>
                 <div style="display:inline-flex; gap:0.2rem; margin-left:0.5rem;">
                     <button class="toggle-btn active" id="btnCardView" onclick="toggleView('card')">카드</button>
@@ -444,9 +549,9 @@
         </div>
     </div>
 
-    <!-- Result Modal -->
+    <!-- Result Modal (학습 결과 - 넓은 가독성) -->
     <div id="resultModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content result-modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
             <h2 id="modalTitle">참여 현황</h2>
             <div id="modalBody"></div>
