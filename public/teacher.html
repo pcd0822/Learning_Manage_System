@@ -287,9 +287,13 @@
                         const result = await response.json();
                         showResult(result.pageId, settings.notionKey, settings.resultsDb, docRef.id); // Pass credentials and Firestore ID
                     } else {
-                        console.error("Notion publish failed");
-                        alert("Firestore에는 저장되었으나 Notion 발행에 실패했습니다.");
-                        // Notion 페이지 ID가 없으므로 showResult 호출하지 않음 (result는 if 블록에서만 정의됨)
+                        let errMsg = "Firestore에는 저장되었으나 Notion 발행에 실패했습니다.";
+                        try {
+                            const errBody = await response.json();
+                            if (errBody && errBody.error) errMsg += "\n\n원인: " + errBody.error;
+                        } catch (_) {}
+                        console.error("Notion publish failed", response.status, errMsg);
+                        alert(errMsg);
                         btn.textContent = '저장 및 발행하기';
                         btn.disabled = false;
                     }
