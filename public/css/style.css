@@ -411,11 +411,25 @@ th {
     border-radius: 1rem;
     width: 90%;
     max-width: 500px;
-    /* Standard modal width */
     max-height: 80vh;
     overflow-y: auto;
     position: relative;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* 학습 결과 모달: 가독성을 위해 너비 확대 */
+.modal-content.result-modal-content {
+    max-width: min(920px, 95vw);
+    width: 95%;
+}
+
+.result-modal-content .result-table {
+    width: 100%;
+    font-size: 1rem;
+}
+.result-modal-content .result-table th,
+.result-modal-content .result-table td {
+    padding: 0.65rem 0.85rem;
 }
 
 .close-btn {
@@ -431,4 +445,23 @@ th {
     padding: 0.4rem 0.8rem;
     font-size: 0.9rem;
     width: auto;
+}
+
+/* 삭제 모드: 카드에 체크박스 */
+.quiz-card.delete-mode,
+.folder-card.delete-mode {
+    position: relative;
+    padding-left: 2.5rem;
+}
+.delete-check-wrap {
+    position: absolute;
+    left: 0.75rem;
+    top: 0.75rem;
+    margin: 0;
+    cursor: pointer;
+}
+.delete-check-wrap input {
+    width: 1.2rem;
+    height: 1.2rem;
+    cursor: pointer;
 }
