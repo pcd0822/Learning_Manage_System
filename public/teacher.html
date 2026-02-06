@@ -289,9 +289,9 @@
                     } else {
                         console.error("Notion publish failed");
                         alert("Firestore에는 저장되었으나 Notion 발행에 실패했습니다.");
-                        // Still show success for Firestore?
-                        // For now, let's treat it as partial success
-                        showResult(result.pageId, settings.notionKey, settings.resultsDb, docRef.id);
+                        // Notion 페이지 ID가 없으므로 showResult 호출하지 않음 (result는 if 블록에서만 정의됨)
+                        btn.textContent = '저장 및 발행하기';
+                        btn.disabled = false;
                     }
                 } else {
                     alert('Notion 설정이 없어 Firestore에만 저장되었습니다.');
